@@ -1,0 +1,16 @@
+{
+  "name": "@doormes/application",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@doormes/contracts": "*",
+    "@doormes/domain": "*",
+    "@doormes/engineering-joint-catalog": "*",
+    "@doormes/geometry-topology": "*",
+    "@doormes/product-template-catalog": "*"
+  }
+}

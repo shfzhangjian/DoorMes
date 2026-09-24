@@ -1,0 +1,15 @@
+{
+  "name": "@doormes/layout-shell-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@doormes/application": "*",
+    "@doormes/interaction-core": "*",
+    "@doormes/interaction-desktop": "*",
+    "@doormes/ui-components": "*"
+  }
+}

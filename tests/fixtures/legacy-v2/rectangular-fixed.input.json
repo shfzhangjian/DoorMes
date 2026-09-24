@@ -1,0 +1,323 @@
+{
+  "schemaVersion": "cn-door-window-design.v2",
+  "project": {
+    "projectId": "PROJECT-PARITY-001",
+    "name": "矩形固定窗兼容基线",
+    "customerName": "迁移测试",
+    "contactPhone": "",
+    "status": "designing",
+    "createdAt": "2026-09-17T00:00:00.000Z",
+    "address": ""
+  },
+  "order": {
+    "orderId": "ORDER-PARITY-001",
+    "batchNo": "BATCH-PARITY-001",
+    "source": "migration-fixture"
+  },
+  "catalog": {
+    "profileSystems": [
+      {
+        "id": "AL70",
+        "name": "70断桥铝系统窗",
+        "material": "aluminum",
+        "frameProfile": "AL70-K01",
+        "sashProfile": "AL70-S01",
+        "mullionProfile": "AL70-Z01",
+        "spliceProfile": "AL70-SPLICE",
+        "cornerProfile": "AL70-CORNER-90",
+        "beadProfile": "AL70-YT01",
+        "gasketCode": "EPDM-70",
+        "faceWidthMm": 70,
+        "frameDepthMm": 70,
+        "sashFaceWidthMm": 58,
+        "stockLengthMm": 6000,
+        "sawKerfMm": 4
+      },
+      {
+        "id": "PVC80",
+        "name": "80塑钢推拉窗",
+        "material": "pvc",
+        "frameProfile": "PVC80-K01",
+        "sashProfile": "PVC80-S01",
+        "mullionProfile": "PVC80-Z01",
+        "spliceProfile": "PVC80-SPLICE",
+        "cornerProfile": "PVC80-CORNER-90",
+        "beadProfile": "PVC80-YT01",
+        "gasketCode": "EPDM-PVC80",
+        "faceWidthMm": 80,
+        "frameDepthMm": 80,
+        "sashFaceWidthMm": 62,
+        "stockLengthMm": 5800,
+        "sawKerfMm": 4
+      }
+    ],
+    "glassTypes": [
+      {
+        "id": "GL-LOWE-24",
+        "name": "5+14A+5 Low-E",
+        "thicknessMm": 24,
+        "ug": 1.8
+      },
+      {
+        "id": "GL-TEMP-27",
+        "name": "6+15A+6 钢化中空",
+        "thicknessMm": 27,
+        "ug": 2
+      },
+      {
+        "id": "GL-TRIPLE-36",
+        "name": "5+12A+5+12A+5 三玻两腔",
+        "thicknessMm": 36,
+        "ug": 1.1
+      }
+    ],
+    "hardwareSets": [
+      {
+        "id": "HW-TT-STD",
+        "name": "内开内倒标准五金",
+        "handleCode": "HW-BS-01",
+        "hingeCode": "HW-HJ-70",
+        "memberName": "传动器/铰链",
+        "hingeQtyRule": "height>1800?3:2"
+      },
+      {
+        "id": "HW-TURN-STD",
+        "name": "平开标准五金",
+        "handleCode": "HW-BS-02",
+        "hingeCode": "HW-HJ-50",
+        "memberName": "合页/铰链",
+        "hingeQtyRule": "height>1800?3:2"
+      },
+      {
+        "id": "HW-HUNG-STD",
+        "name": "悬窗标准五金",
+        "handleCode": "HW-HUNG-HANDLE",
+        "hingeCode": "HW-FRICTION-STAY",
+        "memberName": "摩擦铰链/风撑",
+        "hingeQtyRule": "2"
+      },
+      {
+        "id": "HW-SLIDE-STD",
+        "name": "推拉标准五金",
+        "handleCode": "HW-SL-01",
+        "hingeCode": "HW-ROLLER-01",
+        "memberName": "滑轮组件",
+        "hingeQtyRule": "2"
+      },
+      {
+        "id": "HW-LIFT-SLIDE",
+        "name": "提升推拉五金",
+        "handleCode": "HW-LS-HANDLE",
+        "hingeCode": "HW-LS-BOGIE",
+        "memberName": "提升滑轮车",
+        "hingeQtyRule": "2"
+      },
+      {
+        "id": "HW-VERTICAL-SLIDE",
+        "name": "上下提拉五金",
+        "handleCode": "HW-VS-LOCK",
+        "hingeCode": "HW-VS-BALANCE",
+        "memberName": "平衡器/导向件",
+        "hingeQtyRule": "2"
+      },
+      {
+        "id": "HW-FOLD-STD",
+        "name": "折叠窗标准五金",
+        "handleCode": "HW-FOLD-HANDLE",
+        "hingeCode": "HW-FOLD-HINGE",
+        "memberName": "折叠合页/滑轮",
+        "hingeQtyRule": "4"
+      },
+      {
+        "id": "HW-PSK-STD",
+        "name": "PSK平移内倒五金",
+        "handleCode": "HW-PSK-HANDLE",
+        "hingeCode": "HW-PSK-CARRIAGE",
+        "memberName": "平移内倒滑车/剪刀撑",
+        "hingeQtyRule": "2"
+      },
+      {
+        "id": "HW-PARALLEL-SLIDE",
+        "name": "平行推拉五金",
+        "handleCode": "HW-PS-HANDLE",
+        "hingeCode": "HW-PS-CARRIAGE",
+        "memberName": "平行推拉滑车",
+        "hingeQtyRule": "2"
+      },
+      {
+        "id": "HW-PARALLEL-PROJECT",
+        "name": "平行推出五金",
+        "handleCode": "HW-PP-HANDLE",
+        "hingeCode": "HW-PP-STAY",
+        "memberName": "同步剪刀撑",
+        "hingeQtyRule": "4"
+      },
+      {
+        "id": "HW-POCKET-SLIDE",
+        "name": "入墙推拉五金",
+        "handleCode": "HW-PK-HANDLE",
+        "hingeCode": "HW-PK-ROLLER",
+        "memberName": "入墙滑轮/缓冲器",
+        "hingeQtyRule": "2"
+      },
+      {
+        "id": "HW-CORNER-SLIDE",
+        "name": "转角推拉五金",
+        "handleCode": "HW-CS-HANDLE",
+        "hingeCode": "HW-CS-ROLLER",
+        "memberName": "转角滑轮/联动件",
+        "hingeQtyRule": "2"
+      },
+      {
+        "id": "HW-DOOR-STD",
+        "name": "门扇标准五金",
+        "handleCode": "HW-LOCK-01",
+        "hingeCode": "HW-DH-01",
+        "memberName": "门合页",
+        "hingeQtyRule": "height>2200?4:3"
+      }
+    ],
+    "panelTypes": [
+      {
+        "id": "PN-SANDWICH",
+        "name": "保温夹芯板",
+        "thicknessMm": 24
+      },
+      {
+        "id": "PN-ALU",
+        "name": "铝单板",
+        "thicknessMm": 3
+      }
+    ]
+  },
+  "componentLibrary": [],
+  "measurements": [],
+  "joints": [],
+  "assemblies": [],
+  "viewOptions": {
+    "showOpenState": true,
+    "showProfileColor": true,
+    "showDimensions": true,
+    "showPlanView": true,
+    "show3dDimensions": true,
+    "show3dMarkups": true,
+    "show3dOrientation": true
+  },
+  "calculation": {
+    "status": "calculated",
+    "mbomVersion": 1,
+    "lastCalculatedAt": "",
+    "confirmedAt": "",
+    "frozenAt": "",
+    "lastHash": "",
+    "events": []
+  },
+  "customShapes": [],
+  "integrations": {
+    "reservedEvents": [],
+    "externalRefs": []
+  },
+  "windows": [
+    {
+      "windowId": "W-RECT-001",
+      "mark": "C1",
+      "name": "矩形固定窗",
+      "quantity": 1,
+      "widthMm": 1200,
+      "heightMm": 1500,
+      "seriesId": "AL70",
+      "colorInside": "RAL9016",
+      "colorOutside": "RAL7016",
+      "defaultGlassTypeId": "GL-LOWE-24",
+      "defaultHardwareSetId": "HW-TT-STD",
+      "geometryMode": "grid",
+      "shape": {
+        "type": "rectangular",
+        "archHeightMm": 0,
+        "shapeAngleDeg": 0,
+        "points": []
+      },
+      "layout": {
+        "columns": [
+          1
+        ],
+        "rows": [
+          1
+        ],
+        "cells": [
+          {
+            "cellId": "CELL-RECT-001",
+            "type": "fixed_glass",
+            "opening": "fixed"
+          }
+        ]
+      },
+      "topology": {
+        "coordinateSystem": "normalized-inner",
+        "vertices": [
+          {
+            "vertexId": "V-TL",
+            "xRatio": 0,
+            "yRatio": 0
+          },
+          {
+            "vertexId": "V-TR",
+            "xRatio": 1,
+            "yRatio": 0
+          },
+          {
+            "vertexId": "V-BR",
+            "xRatio": 1,
+            "yRatio": 1
+          },
+          {
+            "vertexId": "V-BL",
+            "xRatio": 0,
+            "yRatio": 1
+          }
+        ],
+        "frameSegments": [
+          {
+            "segmentId": "frame.top",
+            "side": "top",
+            "startVertexId": "V-TL",
+            "endVertexId": "V-TR",
+            "profileRole": "frame"
+          },
+          {
+            "segmentId": "frame.right",
+            "side": "right",
+            "startVertexId": "V-TR",
+            "endVertexId": "V-BR",
+            "profileRole": "frame"
+          },
+          {
+            "segmentId": "frame.bottom",
+            "side": "bottom",
+            "startVertexId": "V-BR",
+            "endVertexId": "V-BL",
+            "profileRole": "frame"
+          },
+          {
+            "segmentId": "frame.left",
+            "side": "left",
+            "startVertexId": "V-BL",
+            "endVertexId": "V-TL",
+            "profileRole": "frame"
+          }
+        ],
+        "members": [],
+        "regions": [
+          {
+            "regionId": "CELL-RECT-001",
+            "source": "layout-cell",
+            "row": 0,
+            "col": 0
+          }
+        ]
+      },
+      "markups": [],
+      "notes": "首个旧算法对照样本"
+    }
+  ]
+}

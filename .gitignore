@@ -1,0 +1,25 @@
+# Temporary local tooling data.
+.tmp/
+
+# Local managed visual-asset bytes and metadata (configurable in .env).
+runtime-data/
+
+# JavaScript and TypeScript build artifacts.
+node_modules/
+dist/
+coverage/
+.vite/
+playwright-report/
+test-results/
+
+# Environment-specific configuration and logs.
+.env
+.env.*
+!.env.example
+*.log
+
+# Operating-system and editor metadata.
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

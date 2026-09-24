@@ -1,0 +1,10 @@
+{
+  "name": "@doormes/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./legacy-v2-schema": "./schemas/door-window-design.v2.schema.json"
+  }
+}

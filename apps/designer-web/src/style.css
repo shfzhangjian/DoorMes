@@ -1,0 +1,1732 @@
+:root {
+  color: #172033;
+  background: #eef2f7;
+  font-family: Inter, "Microsoft YaHei", system-ui, sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.shell {
+  min-height: 100vh;
+  background: #eef2f7;
+}
+
+/*
+ * The PC shell owns exactly one viewport. Side panels scroll independently,
+ * so a long object tree/editor cannot enlarge the document and steal wheel
+ * events from the 2D/3D canvas.
+ * @since 0.10.14
+ * @modified 2026-09-18 - Replaced document scrolling with bounded desktop regions.
+ */
+.desktop-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.shell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  padding: 10px 16px;
+  color: #fff;
+  background: #202939;
+}
+
+.shell__title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.shell__badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #cfe0ff;
+  background: #35435a;
+  font-size: 12px;
+}
+
+/*
+ * Project files are app-level actions mounted into either interaction shell.
+ * Compact header controls keep backup/import reachable without consuming the
+ * bounded canvas or either independently scrolling side panel.
+ * @since 0.10.21
+ * @modified 2026-09-18 - Added portable project save/open controls.
+ */
+.project-file-controls,
+.drawing-export-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.project-file-controls button,
+.drawing-export-controls button {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid #64748b;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #172033;
+  cursor: pointer;
+}
+
+.project-file-controls button:hover,
+.drawing-export-controls button:hover {
+  background: #dbeafe;
+}
+
+.drawing-export-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  background: #e2e8f0;
+}
+
+/*
+ * Factory drawing preview is a bounded page-review workspace rather than a
+ * second editor. The iframe owns the frozen revision's exact ISO paper size;
+ * this outer shell only provides scrolling and the actions that reuse it for
+ * SVG download or browser print/PDF.
+ * @since 0.10.59
+ * @modified 2026-09-21 - Added responsive A3/A4 preview and print controls.
+ */
+.factory-drawing-dialog {
+  width: min(96vw, 1500px);
+  height: min(94vh, 1000px);
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #94a3b8;
+  border-radius: 12px;
+  color: #172033;
+  background: #eef2f7;
+  box-shadow: 0 24px 70px rgb(15 23 42 / 35%);
+}
+
+.factory-drawing-dialog[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.factory-drawing-dialog::backdrop {
+  background: rgb(15 23 42 / 58%);
+}
+
+.factory-drawing-dialog__header,
+.factory-drawing-dialog__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #fff;
+}
+
+.factory-drawing-dialog__header {
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.factory-drawing-dialog__header > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.factory-drawing-dialog__header strong {
+  overflow: hidden;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.factory-drawing-dialog__header span,
+.factory-drawing-dialog__actions > span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.factory-drawing-dialog__stage {
+  min-width: 0;
+  min-height: 0;
+  padding: 14px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #cbd5e1;
+}
+
+.factory-drawing-dialog__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 720px;
+  min-height: 510px;
+  border: 1px solid #94a3b8;
+  background: #fff;
+  box-shadow: 0 4px 18px rgb(15 23 42 / 16%);
+}
+
+.factory-drawing-dialog__actions {
+  border-top: 1px solid #cbd5e1;
+}
+
+.factory-drawing-dialog__actions > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.factory-drawing-dialog button {
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1px solid #94a3b8;
+  border-radius: 7px;
+  color: #172033;
+  background: #fff;
+  cursor: pointer;
+}
+
+.factory-drawing-dialog button:hover:not(:disabled) {
+  background: #dbeafe;
+}
+
+.factory-drawing-dialog button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.desktop-shell__workspace {
+  display: grid;
+  grid-template-columns: clamp(220px, 20vw, 280px) minmax(0, 1fr) clamp(260px, 23vw, 340px);
+  align-items: stretch;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/*
+ * The design workspace consumes the bounded center grid row. Its own toolbar
+ * and surface decide internal sizing without inheriting inspector height.
+ * @since 0.10.14
+ * @modified 2026-09-18 - Made canvas height independent of all panel content.
+ */
+.desktop-shell .design-workspace {
+  height: 100%;
+  min-height: 0;
+  align-self: stretch;
+}
+
+.shell-panel {
+  padding: 16px;
+  background: #fff;
+  border-right: 1px solid #dce3ee;
+}
+
+.shell-panel:last-child {
+  border-right: 0;
+  border-left: 1px solid #dce3ee;
+}
+
+.desktop-shell__left-panel,
+.desktop-shell__right-panel {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.desktop-shell__right-panel {
+  display: block;
+}
+
+.desktop-shell__panel-section {
+  min-width: 0;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.desktop-shell__panel-section + .desktop-shell__panel-section {
+  padding-top: 14px;
+}
+
+.desktop-shell__panel-section h2 {
+  margin: 0 0 10px;
+}
+
+.desktop-shell__panel-section p {
+  margin: 0 0 10px;
+}
+
+.shell-form {
+  display: grid;
+  gap: 12px;
+}
+
+.shell-form label {
+  display: grid;
+  gap: 5px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.shell-form input,
+.shell-form select {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+}
+
+/*
+ * Product-template status is business guidance, not a technical editor panel.
+ * Keep the hint compact below the picker and let the mobile picker span the
+ * full sheet width so long target-product names never squeeze dimensions.
+ * @since 0.10.77
+ * @modified 2026-09-22 - Added shared target-template creation presentation.
+ */
+[data-product-template-note] {
+  display: block;
+  color: #7c5b00;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.shell-form__status,
+.mobile-shell__creation-status {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.shell-form__status[data-state="error"],
+.mobile-shell__creation-status[data-state="error"] {
+  color: #b42318;
+}
+
+.shell-form__status[data-state="success"],
+.mobile-shell__creation-status[data-state="success"] {
+  color: #067647;
+}
+
+.shell-button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 7px;
+  color: #fff;
+  background: #1677ff;
+  cursor: pointer;
+}
+
+.design-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 420px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.design-workspace__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 48px;
+  padding: 7px 12px;
+  background: #fff;
+  border-bottom: 1px solid #dce3ee;
+}
+
+.design-workspace__toolbar button {
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #334155;
+  background: #fff;
+  cursor: pointer;
+}
+
+.design-workspace__toolbar button[aria-pressed="true"] {
+  color: #fff;
+  background: #1677ff;
+  border-color: #1677ff;
+}
+
+.design-workspace__toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.design-workspace__hint {
+  flex: 1;
+  color: #64748b;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Runtime-only model reload status; it never enters design data or BOM. */
+.design-workspace__asset-status {
+  max-width: min(320px, 34vw);
+  padding: 4px 7px;
+  overflow: hidden;
+  border-radius: 5px;
+  color: #1e3a5f;
+  background: #eff6ff;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.design-workspace__asset-status[data-state="ready"] {
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.design-workspace__asset-status[data-state="error"] {
+  color: #b42318;
+  background: #fff1f0;
+}
+
+.design-workspace__2d-controls,
+.design-workspace__3d-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/*
+ * The ruler switch is shared by SVG and Three.js, so it remains visible while
+ * changing projections. It owns presentation visibility only; dimensions still
+ * come from the common domain snapshot.
+ * @since 0.9.4
+ * @modified 2026-09-17 - Added one cross-view 2D/3D ruler control.
+ */
+.design-workspace__shared-view-option,
+.design-workspace__2d-controls label,
+.design-workspace__3d-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #475569;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.design-workspace__shared-view-option input,
+.design-workspace__2d-controls input,
+.design-workspace__3d-controls input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+/*
+ * The 2D style selector changes only the renderer presentation. Its compact
+ * control works in both shells and deliberately sits beside plan/opening
+ * visibility so users do not confuse it with a material or product mutation.
+ * @since 0.10.71
+ * @modified 2026-09-22 - Added material/engineering-line view switch.
+ */
+.design-workspace__2d-controls select {
+  min-height: 30px;
+  padding: 4px 22px 4px 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #334155;
+  background: #fff;
+  font: inherit;
+}
+
+.design-workspace__grid-controls {
+  display: inline-flex;
+  order: 10;
+  flex: 1 0 100%;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding-top: 6px;
+  overflow-x: auto;
+  border-top: 1px solid #eef2f7;
+  scrollbar-width: thin;
+}
+
+.design-workspace__grid-controls[hidden] {
+  display: none;
+}
+
+.design-workspace__grid-controls button {
+  flex: 0 0 auto;
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+
+/*
+ * Opening controls are one shared interaction component placed in the PC
+ * toolbar or the mobile bottom drawer. Only layout changes between shells;
+ * panel selection, progress and playback remain in OpeningPreviewStore.
+ * @since 0.8.2
+ * @modified 2026-09-17 - Added cross-shell opening preview controls.
+ */
+.design-opening-controls {
+  display: flex;
+  flex-wrap: wrap;
+  order: 11;
+  flex: 1 0 100%;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding-top: 6px;
+  overflow: visible;
+  border-top: 1px solid #eef2f7;
+  color: #475569;
+  font-size: 12px;
+}
+
+.design-opening-controls[hidden] {
+  display: none;
+}
+
+.design-opening-controls__panels {
+  display: inline-flex;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.design-opening-controls__progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 165px;
+  white-space: nowrap;
+}
+
+.design-opening-controls__progress input[type="range"] {
+  width: 105px;
+}
+
+/*
+ * Physical rotation is editable as a decimal degree value beside the range.
+ * The compact width keeps desktop controls wrappable while mobile receives a
+ * larger touch target below. Percentage remains internal to the animator.
+ * @since 0.9.0
+ * @modified 2026-09-17 - Added degree-facing opening controls.
+ */
+.design-opening-controls__progress input[type="number"] {
+  width: 62px;
+  min-height: 34px;
+  padding: 5px 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #334155;
+  background: #fff;
+}
+
+.design-opening-controls select,
+.design-opening-controls button {
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #334155;
+  background: #fff;
+  white-space: nowrap;
+}
+
+.design-opening-controls button:disabled,
+.design-opening-controls select:disabled,
+.design-opening-controls input:disabled {
+  opacity: 0.42;
+}
+
+.design-workspace__2d-controls[hidden],
+.design-workspace__3d-controls[hidden] {
+  display: none;
+}
+
+.design-workspace__stage {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 0;
+}
+
+.design-workspace__stage > [hidden],
+.design-workspace__toolbar > [hidden] {
+  display: none;
+}
+
+.design-surface {
+  display: grid;
+  align-content: start;
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  padding: 20px;
+  overflow: auto;
+  background: #f8fafc;
+}
+
+.design-surface svg {
+  width: 100%;
+  min-width: 320px;
+  min-height: 360px;
+  border: 1px solid #dce3ee;
+  background: #fff;
+  /*
+   * Engineering labels belong to the drawing interaction surface. Permanent
+   * selection suppression prevents pointer drags from highlighting SVG text.
+   * @since 0.10.25
+   * @modified 2026-09-18 - Fixed 2D canvas text-selection leakage.
+   */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.design-surface [data-object-id] {
+  cursor: pointer;
+}
+
+.design-surface [data-divider-axis="column"] {
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.design-surface [data-member-kind="meeting-mullion"] {
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.design-surface [data-divider-axis="row"] {
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.design-surface [data-member-kind="topology-member"][data-orientation="vertical"] {
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.design-surface [data-member-kind="topology-member"][data-orientation="horizontal"] {
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.design-surface.is-dragging-divider,
+.design-surface.is-dragging-divider svg {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.design-surface:not(.is-panning) svg {
+  cursor: grab;
+}
+
+.design-surface.is-panning svg {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.design-surface [data-object-id],
+.design-surface [data-dimension-kind] {
+  cursor: pointer;
+}
+
+/*
+ * Position-editable members expose a compact grip while keeping the complete
+ * profile draggable. These selectors intentionally follow the generic object
+ * cursor rule so the legal movement axis is visible on both body and handle.
+ * @since 0.10.30
+ * @modified 2026-09-20 - Added discoverable grid/topology/meeting dragging.
+ */
+.design-surface [data-divider-axis="column"],
+.design-surface [data-member-kind="meeting-mullion"],
+.design-surface [data-member-kind="topology-member"][data-orientation="vertical"] {
+  cursor: ew-resize;
+}
+
+.design-surface [data-divider-axis="row"],
+.design-surface [data-member-kind="topology-member"][data-orientation="horizontal"] {
+  cursor: ns-resize;
+}
+
+.design-surface rect[data-selected="true"],
+.design-surface path[data-selected="true"],
+.design-window[data-selected="true"] > .design-window__outline {
+  stroke: #ff8a00;
+  stroke-width: 5;
+  filter: drop-shadow(0 0 3px rgb(255 138 0 / 55%));
+}
+
+.design-dimension {
+  color: #64748b;
+}
+
+.design-dimension line {
+  stroke: currentColor;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.design-dimension text {
+  fill: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.design-plan-view text {
+  fill: #334155;
+  font-size: 12px;
+  text-anchor: middle;
+}
+
+.design-plan-view__side-label--outside,
+.design-assembly-plan-view .design-plan-view__side-label--outside {
+  fill: #075985;
+  font-weight: 600;
+}
+
+.design-plan-view__side-label--inside,
+.design-assembly-plan-view .design-plan-view__side-label--inside {
+  fill: #9a3412;
+  font-weight: 600;
+}
+
+.design-dimension__hit {
+  stroke: transparent !important;
+  stroke-width: 16 !important;
+}
+
+.design-dimension__label-hit {
+  fill: #fff;
+  fill-opacity: 0.94;
+  stroke: #cbd5e1 !important;
+  stroke-width: 0.8 !important;
+  pointer-events: all;
+}
+
+.design-dimension--editable:hover .design-dimension__label-hit,
+.design-dimension--editable:focus .design-dimension__label-hit,
+.design-dimension[data-selected="true"] .design-dimension__label-hit {
+  fill: #eff6ff;
+  fill-opacity: 0.98;
+}
+
+.design-dimension[data-selected="true"] {
+  color: #1677ff;
+}
+
+.design-dimension[data-selected="true"] text {
+  fill: #0958d9;
+  font-weight: 600;
+}
+
+.design-dimension--editable:hover,
+.design-dimension--editable:focus {
+  color: #1677ff;
+  outline: none;
+}
+
+/*
+ * A selected frame/sash/mullion exposes its own face and catalogue section in
+ * the reserved annotation band. These are read-only design facts, so the
+ * overlay never captures pointer input or competes with editable dimensions.
+ * @since 0.10.74
+ * @modified 2026-09-22 - Added contextual profile measurements.
+ */
+.design-profile-annotation__face-dimension line {
+  stroke: #475569;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.design-profile-annotation__face-dimension rect {
+  fill: #fff;
+  fill-opacity: 0.97;
+  stroke: #94a3b8;
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.design-profile-annotation__face-dimension text {
+  fill: #0f172a;
+  font-size: 10px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.design-window__opening-symbol,
+.design-window__opening-symbol-halo {
+  vector-effect: non-scaling-stroke;
+}
+
+.design-window__opening-symbol {
+  stroke: #0755b5;
+  stroke-width: 2;
+}
+
+.design-window__opening-symbol--in {
+  stroke: #0755b5;
+}
+
+.design-window__opening-symbol--out {
+  stroke: #b45309;
+}
+
+.design-window__glass-symbol line,
+.design-window__opening-plane-arrow line,
+.design-window__opening-plane-arrow polygon {
+  vector-effect: non-scaling-stroke;
+}
+
+.design-plan-view line,
+.design-plan-view rect {
+  vector-effect: non-scaling-stroke;
+}
+
+.design-dimension-editor {
+  position: absolute;
+  z-index: 5;
+  width: 200px;
+  padding: 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 18%);
+}
+
+.design-dimension-editor[hidden] {
+  display: none;
+}
+
+.design-dimension-editor label {
+  display: grid;
+  gap: 5px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.design-dimension-editor input {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+}
+
+.design-dimension-editor > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.design-dimension-editor button {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.design-dimension-editor button[type="submit"] {
+  color: #fff;
+  background: #1677ff;
+  border-color: #1677ff;
+}
+
+.design-text-label-editor {
+  position: absolute;
+  z-index: 7;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
+  width: 284px;
+  padding: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 20%);
+}
+
+.design-text-label-editor[hidden] {
+  display: none;
+}
+
+.design-text-label-editor label {
+  display: grid;
+  gap: 4px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.design-text-label-editor label:first-child,
+.design-text-label-editor label:nth-child(7),
+.design-text-label-editor > div {
+  grid-column: 1 / -1;
+}
+
+.design-text-label-editor input,
+.design-text-label-editor select {
+  width: 100%;
+  min-height: 34px;
+  padding: 5px 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.design-text-label-editor input[type="checkbox"] {
+  width: auto;
+  min-height: auto;
+}
+
+.design-text-label-editor > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.design-text-label-editor button {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.design-text-label-editor button[type="submit"] {
+  color: #fff;
+  background: #1677ff;
+  border-color: #1677ff;
+}
+
+.design-text-label {
+  cursor: move;
+}
+
+.is-dragging-text-label .design-text-label {
+  cursor: grabbing;
+}
+
+.design-context-menu {
+  position: absolute;
+  z-index: 6;
+  display: grid;
+  width: 156px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 20%);
+}
+
+.design-context-menu[hidden] {
+  display: none;
+}
+
+.design-context-menu strong {
+  padding: 9px 11px;
+  color: #334155;
+  font-size: 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.design-context-menu button {
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 0;
+  color: #334155;
+  text-align: left;
+  background: #fff;
+  cursor: pointer;
+}
+
+.design-context-menu button:hover,
+.design-context-menu button:focus-visible {
+  color: #1677ff;
+  background: #eff6ff;
+  outline: none;
+}
+
+.design-context-menu [data-context-delete] {
+  color: #b91c1c;
+}
+
+.three-design-viewport {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  overflow: hidden;
+  background: #f2f5f9;
+}
+
+.three-design-viewport__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  touch-action: none;
+}
+
+.three-design-viewport__error {
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+  color: #991b1b;
+  text-align: center;
+  background: #fff1f2;
+}
+
+.object-tree {
+  overflow: auto;
+}
+
+.desktop-shell__panel-section--tree .object-tree {
+  max-height: min(34dvh, 360px);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.object-tree__selection,
+.object-tree__empty {
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 6px;
+  color: #475569;
+  background: #f1f5f9;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.object-tree__window ul {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.object-tree__window button {
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 5px;
+  color: #475569;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.object-tree__window button:hover {
+  background: #eff6ff;
+}
+
+.object-tree__window button[aria-pressed="true"] {
+  color: #0756b8;
+  background: #dbeafe;
+  box-shadow: inset 3px 0 #1677ff;
+}
+
+.object-tree__window button[data-kind="window"] {
+  color: #172033;
+  font-weight: 700;
+}
+
+.object-inspector {
+  color: #475569;
+  font-size: 12px;
+}
+
+.object-inspector__empty,
+.object-inspector__identity {
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  overflow-wrap: anywhere;
+}
+
+.object-inspector__identity {
+  display: grid;
+  gap: 3px;
+}
+
+/*
+ * Product-template provenance stays prominent without exposing developer-only
+ * PBR/profile assumptions in the ordinary PC/mobile inspector. The compact
+ * warning also prevents a public-reference simulation being mistaken for an
+ * approved production template.
+ * @since 0.10.77
+ * @modified 2026-09-22 - Added shared simulated-template status styling.
+ */
+.object-inspector__product-template {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid #f5c66a;
+  border-radius: 6px;
+  color: #7c3f00;
+  background: #fff8e8;
+  overflow-wrap: anywhere;
+}
+
+.object-inspector__product-template strong {
+  color: #5f3100;
+}
+
+.object-inspector__product-template small {
+  color: #7c5a28;
+}
+
+.object-inspector__form,
+.object-inspector__form label {
+  display: grid;
+  gap: 5px;
+}
+
+.object-inspector__form {
+  gap: 9px;
+}
+
+.object-inspector__form input,
+.object-inspector__form select,
+.object-inspector__form textarea {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  color: #172033;
+  background: #fff;
+}
+
+.object-inspector__form textarea {
+  min-height: 54px;
+  resize: vertical;
+}
+
+.object-inspector__form input:disabled {
+  color: #64748b;
+  background: #f1f5f9;
+}
+
+.object-inspector__span {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+/*
+ * Shared appearance editor: the form and validation language are identical in
+ * both shells; only its surrounding panel changes. Compact controls keep the
+ * desktop inspector usable while 44px actions remain touch-safe on mobile.
+ * @since 0.10.7
+ * @modified 2026-09-18 - Added APPEAR-003 material and hardware editor styles.
+ */
+.appearance-editor {
+  color: #475569;
+  font-size: 12px;
+}
+
+.appearance-editor__empty,
+.appearance-editor__header,
+.appearance-editor__diagnostics,
+.appearance-editor__error,
+.appearance-editor__hint {
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+}
+
+.appearance-editor__header {
+  display: grid;
+  gap: 3px;
+}
+
+.appearance-editor__header strong {
+  color: #172033;
+}
+
+.appearance-editor__header span {
+  overflow-wrap: anywhere;
+}
+
+.appearance-editor__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 9px;
+}
+
+.appearance-editor__steps button {
+  min-height: 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #334155;
+  background: #fff;
+  cursor: pointer;
+}
+
+.appearance-editor__steps button[aria-pressed="true"] {
+  color: #0756b8;
+  background: #dbeafe;
+  border-color: #60a5fa;
+}
+
+.appearance-editor__preview-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 9px;
+  padding: 7px 8px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1e3a5f;
+  line-height: 1.4;
+}
+
+.appearance-editor__preview-status span {
+  flex: 1;
+}
+
+.appearance-editor__preview-status button {
+  flex: none;
+  min-height: 30px;
+  border: 1px solid #93c5fd;
+  border-radius: 5px;
+  background: #fff;
+  color: #0756b8;
+  cursor: pointer;
+}
+
+.appearance-editor__history {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 9px;
+  padding: 8px;
+  border: 1px solid #d8dee9;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.appearance-editor__history select {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.appearance-editor__history > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.appearance-editor__history button {
+  min-height: 34px;
+  border: 1px solid #93c5fd;
+  border-radius: 5px;
+  background: #fff;
+  color: #0756b8;
+  cursor: pointer;
+}
+
+.appearance-editor__history button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.appearance-editor__history [data-state="error"] {
+  color: #b42318;
+}
+
+.appearance-editor__form,
+.appearance-editor__form label {
+  display: grid;
+  gap: 5px;
+}
+
+.appearance-editor__form {
+  gap: 9px;
+}
+
+.appearance-editor__form[hidden] {
+  display: none;
+}
+
+.appearance-editor__form input,
+.appearance-editor__form select {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  color: #172033;
+  background: #fff;
+}
+
+.appearance-editor__span {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.appearance-editor__span--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.appearance-editor__hint {
+  line-height: 1.55;
+}
+
+.appearance-editor__diagnostics ul {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.appearance-editor__upload-status {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  color: #1e3a5f;
+  background: #eff6ff;
+}
+
+.appearance-editor__upload-status progress {
+  width: 100%;
+  height: 8px;
+}
+
+.appearance-editor__upload-status ul {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.appearance-editor__form input[type="file"] {
+  padding: 5px;
+  border-style: dashed;
+}
+
+.appearance-editor__diagnostics li[data-severity="error"],
+.appearance-editor__error {
+  color: #b42318;
+  background: #fff1f0;
+}
+
+.shell-history {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.shell-history button {
+  flex: 1;
+  min-height: 38px;
+}
+
+.mobile-shell {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.mobile-shell__body {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  height: calc(100dvh - 56px);
+}
+
+.mobile-shell .design-workspace {
+  min-height: 0;
+}
+
+.mobile-shell .design-workspace__toolbar {
+  min-height: 44px;
+  padding: 5px 8px;
+}
+
+.mobile-shell .design-workspace__hint {
+  display: none;
+}
+
+.mobile-shell .design-workspace__2d-controls,
+.mobile-shell .design-workspace__3d-controls {
+  gap: 5px;
+}
+
+.mobile-shell .design-workspace__grid-controls {
+  display: none;
+}
+
+.mobile-shell .design-workspace__2d-controls button,
+.mobile-shell .design-workspace__3d-controls button {
+  padding-inline: 7px;
+}
+
+.mobile-shell .design-workspace__shared-view-option,
+.mobile-shell .design-workspace__2d-controls label,
+.mobile-shell .design-workspace__3d-controls label {
+  font-size: 0;
+}
+
+.mobile-shell .design-workspace__shared-view-option input,
+.mobile-shell .design-workspace__2d-controls label input,
+.mobile-shell .design-workspace__3d-controls label input {
+  width: 20px;
+  height: 20px;
+}
+
+.mobile-shell .design-workspace__2d-controls select {
+  min-height: 36px;
+  font-size: 12px;
+}
+
+.mobile-shell .design-surface {
+  align-content: center;
+  min-height: 0;
+  padding: 8px;
+}
+
+.mobile-shell .three-design-viewport {
+  min-height: 0;
+}
+
+.mobile-shell .design-surface svg {
+  min-width: 0;
+  min-height: 100%;
+  touch-action: none;
+}
+
+.mobile-shell__sheet {
+  width: 100%;
+  min-width: 0;
+  max-height: 55dvh;
+  padding: 12px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+  border-top: 1px solid #dce3ee;
+  box-shadow: 0 -8px 24px rgb(15 23 42 / 10%);
+}
+
+.mobile-shell__tree,
+.mobile-shell__inspector,
+.mobile-shell__tools,
+.mobile-shell__opening,
+.mobile-shell__appearance {
+  margin-top: 8px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.mobile-shell__tools[hidden] {
+  display: none;
+}
+
+.mobile-shell__opening[hidden] {
+  display: none;
+}
+
+.mobile-shell__opening .design-opening-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  padding-top: 8px;
+  overflow: visible;
+  border-top: 0;
+}
+
+.mobile-shell__opening .design-opening-controls__panels,
+.mobile-shell__opening .design-opening-controls__progress {
+  grid-column: 1 / -1;
+}
+
+.mobile-shell__opening .design-opening-controls__progress {
+  min-width: 0;
+}
+
+.mobile-shell__opening .design-opening-controls__progress input[type="range"] {
+  flex: 1;
+  width: auto;
+  min-height: 44px;
+}
+
+.mobile-shell__opening .design-opening-controls__progress input[type="number"] {
+  width: 72px;
+  min-height: 44px;
+}
+
+.mobile-shell__opening .design-opening-controls button,
+.mobile-shell__opening .design-opening-controls select {
+  min-height: 44px;
+  min-width: 0;
+}
+
+.mobile-shell__tool-target {
+  margin: 7px 0 0;
+  padding: 7px 8px;
+  border-radius: 5px;
+  color: #475569;
+  background: #f1f5f9;
+  font-size: 12px;
+}
+
+.design-construction-tools {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  padding-top: 8px;
+}
+
+.design-construction-tools button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #334155;
+  background: #fff;
+}
+
+.design-construction-tools button:disabled {
+  opacity: 0.42;
+}
+
+.mobile-shell__tree .object-tree {
+  max-height: 32vh;
+}
+
+.mobile-shell__inspector .object-inspector {
+  max-height: 42vh;
+  padding-top: 6px;
+  overflow: auto;
+}
+
+/*
+ * The mobile appearance workflow is deliberately a full-screen interaction
+ * shell. The shared editor still emits the same immutable command as desktop;
+ * this rule only gives long material/model forms enough touch space.
+ * @since 0.10.7
+ * @modified 2026-09-18 - Added the phone/tablet appearance drawer.
+ */
+.mobile-shell__appearance[open] {
+  position: fixed;
+  inset: 56px 0 0;
+  z-index: 30;
+  margin: 0;
+  padding: 0 max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+}
+
+.mobile-shell__appearance[open] > summary {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 -16px 12px;
+  padding: 14px 16px;
+  color: #172033;
+  background: #fff;
+  border-bottom: 1px solid #dce3ee;
+  box-shadow: 0 4px 12px rgb(15 23 42 / 8%);
+}
+
+.mobile-shell__appearance .appearance-editor {
+  max-width: 720px;
+  margin: 0 auto;
+  font-size: 14px;
+}
+
+.mobile-shell__appearance .appearance-editor__form input,
+.mobile-shell__appearance .appearance-editor__form select,
+.mobile-shell__appearance .appearance-editor__steps button,
+.mobile-shell__appearance .appearance-editor__form .shell-button {
+  min-height: 44px;
+}
+
+.mobile-shell__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+}
+
+.mobile-shell__fields input,
+.mobile-shell__fields select,
+.mobile-shell__fields button {
+  min-height: 46px;
+}
+
+.mobile-shell__fields input,
+.mobile-shell__fields select {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.mobile-shell__fields [data-product-template] {
+  grid-column: 1 / -1;
+}
+
+.mobile-shell__creation-status {
+  margin-top: 6px;
+}
+
+@media (max-width: 520px) {
+  .shell__header {
+    gap: 8px;
+    padding-inline: 10px;
+  }
+
+  .shell__title {
+    font-size: 15px;
+  }
+
+  .shell__badge {
+    display: none;
+  }
+
+  .project-file-controls {
+    margin-left: auto;
+  }
+
+  .project-file-controls button,
+  .drawing-export-controls button {
+    min-height: 30px;
+    padding-inline: 7px;
+    font-size: 12px;
+  }
+
+  .mobile-shell__fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .mobile-shell__fields .shell-button {
+    grid-column: 1 / -1;
+  }
+
+  .factory-drawing-dialog {
+    width: 100vw;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .factory-drawing-dialog__stage {
+    padding: 6px;
+  }
+
+  .factory-drawing-dialog__actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .factory-drawing-dialog__actions > div {
+    width: 100%;
+  }
+
+  .factory-drawing-dialog__actions button {
+    flex: 1;
+  }
+}
+
+@media (max-width: 1400px) {
+  .desktop-shell .design-workspace__hint {
+    display: none;
+  }
+}
+/*
+ * Displays formal design restore/save state independently of either layout shell.
+ * The fixed pill does not participate in desktop/mobile sizing and therefore
+ * cannot reintroduce the previous object-tree/document-scroll coupling.
+ * @since 0.10.20
+ * @modified 2026-09-18 - Added local project persistence feedback.
+ */
+.project-storage-status {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1000;
+  max-width: min(520px, calc(100vw - 24px));
+  padding: 7px 11px;
+  border: 1px solid #93c5fd;
+  border-radius: 999px;
+  background: rgb(239 246 255 / 94%);
+  color: #1e3a8a;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: 0 4px 16px rgb(15 23 42 / 14%);
+  pointer-events: none;
+}
+
+.project-storage-status[data-state="warning"] {
+  border-color: #fbbf24;
+  background: rgb(255 251 235 / 96%);
+  color: #92400e;
+}
+
+.project-storage-status[data-state="error"] {
+  border-color: #fca5a5;
+  background: rgb(254 242 242 / 96%);
+  color: #991b1b;
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@doormes/renderer-three",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@doormes/appearance-model": "*",
+    "@doormes/contracts": "*",
+    "@doormes/geometry-topology": "*",
+    "@doormes/opening-kinematics": "*",
+    "@doormes/visual-asset-storage": "*",
+    "three": "0.186.0"
+  }
+}

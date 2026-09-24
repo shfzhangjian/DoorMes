@@ -1,0 +1,23 @@
+{
+  "name": "@doormes/designer-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@doormes/application": "*",
+    "@doormes/calculation-engine": "*",
+    "@doormes/contracts": "*",
+    "@doormes/drawing-projection": "*",
+    "@doormes/domain": "*",
+    "@doormes/geometry-topology": "*",
+    "@doormes/interaction-core": "*",
+    "@doormes/layout-shell-desktop": "*",
+    "@doormes/layout-shell-mobile": "*",
+    "@doormes/manufacturing-model": "*",
+    "@doormes/persistence": "*",
+    "@doormes/product-template-catalog": "*",
+    "@doormes/renderer-drawing-svg": "*",
+    "@doormes/visual-asset-storage": "*",
+    "@doormes/visual-asset-storage-node": "*"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "suiteId": "DOORMES-GLTF-IMPORT-0.10.12",
+  "sourceRevision": "c6a6bd13ab2b3c685c7903d03561b8a9392f38b8",
+  "maximumAcceptedBytes": 26214400,
+  "files": [
+    {
+      "file": "01-box-basic.glb",
+      "expected": "accept",
+      "purpose": "最小GLB、单网格和单材质基础成功路径",
+      "byteLength": 1664,
+      "contentHash": "sha256:ed52f7192b8311d700ac0ce80644e3852cd01537e4d62241b9acba023da3d54e",
+      "license": "CC-BY-4.0"
+    },
+    {
+      "file": "02-box-vertex-colors.glb",
+      "expected": "accept",
+      "purpose": "顶点颜色属性成功路径",
+      "byteLength": 1924,
+      "contentHash": "sha256:9c48227f33b0ba2fbcf23b98ebf60d1c8ae0c6e6c5281e0aa3cc58affee10382",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "03-simple-meshes-embedded.gltf",
+      "expected": "accept",
+      "purpose": "JSON glTF与data URI内嵌缓冲区成功路径",
+      "byteLength": 1489,
+      "contentHash": "sha256:021cef90f29927aa7881daeff6acc84465bfb715dd1c9e4ab6f051bbe4b35828",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "04-damaged-helmet-textured.glb",
+      "expected": "accept",
+      "purpose": "多贴图PBR和较大二进制文件成功路径",
+      "byteLength": 3773916,
+      "contentHash": "sha256:a1e3b04de97b11de564ce6e53b95f02954a297f0008183ac63a4f5974f6b32d8",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "05-external-uri-rejected.gltf",
+      "expected": "reject",
+      "purpose": "外部buffer URI必须被安全预检拒绝",
+      "byteLength": 195,
+      "contentHash": "sha256:0f1d19382e349a4cc454ba2eee408fbdcc99d0f0ccd085d5a150fadf386d6fc9",
+      "license": "DoorMes project fixture"
+    },
+    {
+      "file": "06-invalid-json-rejected.gltf",
+      "expected": "reject",
+      "purpose": "损坏JSON必须被格式预检拒绝",
+      "byteLength": 90,
+      "contentHash": "sha256:dc2a9995cfe0f8936d2f797cf450d2a1b35000463bedee415a3f4379269a7f6c",
+      "license": "DoorMes project fixture"
+    }
+  ]
+}

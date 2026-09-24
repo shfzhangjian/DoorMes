@@ -1,0 +1,12 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "DoorMes ASSET-003 negative fixture 0.10.12"
+  },
+  "buffers": [
+    {
+      "uri": "external-buffer.bin",
+      "byteLength": 4
+    }
+  ]
+}

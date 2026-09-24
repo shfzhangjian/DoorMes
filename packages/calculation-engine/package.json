@@ -1,0 +1,16 @@
+{
+  "name": "@doormes/calculation-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@doormes/appearance-model": "*",
+    "@doormes/contracts": "*",
+    "@doormes/geometry-topology": "*",
+    "@doormes/manufacturing-model": "*",
+    "@doormes/opening-kinematics": "*"
+  }
+}

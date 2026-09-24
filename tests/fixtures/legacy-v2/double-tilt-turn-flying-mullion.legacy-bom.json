@@ -1,0 +1,752 @@
+{
+  "ebom": [
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "mark": "C6",
+      "type": "window",
+      "widthMm": 1600,
+      "heightMm": 1500,
+      "quantity": 1,
+      "seriesId": "AL70",
+      "geometryMode": "grid",
+      "layout": {
+        "columns": [
+          1
+        ],
+        "rows": [
+          1
+        ],
+        "cells": [
+          {
+            "cellId": "CELL-TT-DOUBLE-001",
+            "type": "turn_tilt",
+            "opening": "right_in",
+            "openingAssembly": {
+              "mechanism": "tilt_turn",
+              "panelCount": 2,
+              "activePanelCount": 2,
+              "trackCount": 1,
+              "stackSide": "none",
+              "primarySide": "right",
+              "mullionMode": "flying_mullion",
+              "openPlane": "in",
+              "operationPriority": "turn_first",
+              "ventilationMode": "tilt",
+              "trafficDoor": "none",
+              "screenMode": "none",
+              "cornerAngleDeg": 90,
+              "cornerPostMode": "postless",
+              "pocketDepthMm": 0,
+              "openPercent": 80,
+              "panels": [
+                {
+                  "id": "P1",
+                  "label": "1号扇",
+                  "role": "secondary",
+                  "movable": true,
+                  "hingeSide": "left",
+                  "trackIndex": 0,
+                  "operationOrder": 1
+                },
+                {
+                  "id": "P2",
+                  "label": "2号扇",
+                  "role": "primary",
+                  "movable": true,
+                  "hingeSide": "right",
+                  "trackIndex": 0,
+                  "operationOrder": 0
+                }
+              ],
+              "operationSequence": [
+                "P2",
+                "P1"
+              ]
+            },
+            "hardwareSetId": "HW-TT-STD"
+          }
+        ]
+      },
+      "topology": {
+        "coordinateSystem": "normalized-inner",
+        "vertices": [
+          {
+            "vertexId": "V-TL",
+            "xRatio": 0,
+            "yRatio": 0
+          },
+          {
+            "vertexId": "V-TR",
+            "xRatio": 1,
+            "yRatio": 0
+          },
+          {
+            "vertexId": "V-BR",
+            "xRatio": 1,
+            "yRatio": 1
+          },
+          {
+            "vertexId": "V-BL",
+            "xRatio": 0,
+            "yRatio": 1
+          }
+        ],
+        "frameSegments": [
+          {
+            "segmentId": "frame.top",
+            "side": "top",
+            "startVertexId": "V-TL",
+            "endVertexId": "V-TR",
+            "profileRole": "frame",
+            "profileId": ""
+          },
+          {
+            "segmentId": "frame.right",
+            "side": "right",
+            "startVertexId": "V-TR",
+            "endVertexId": "V-BR",
+            "profileRole": "frame",
+            "profileId": ""
+          },
+          {
+            "segmentId": "frame.bottom",
+            "side": "bottom",
+            "startVertexId": "V-BR",
+            "endVertexId": "V-BL",
+            "profileRole": "frame",
+            "profileId": ""
+          },
+          {
+            "segmentId": "frame.left",
+            "side": "left",
+            "startVertexId": "V-BL",
+            "endVertexId": "V-TL",
+            "profileRole": "frame",
+            "profileId": ""
+          }
+        ],
+        "members": [],
+        "regions": [
+          {
+            "regionId": "CELL-TT-DOUBLE-001",
+            "source": "layout-cell",
+            "row": 0,
+            "col": 0
+          }
+        ]
+      }
+    },
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "sourceComponentId": "cell.1.1",
+      "type": "turn_tilt",
+      "opening": "right_in",
+      "openingAssembly": {
+        "mechanism": "tilt_turn",
+        "panelCount": 2,
+        "activePanelCount": 2,
+        "trackCount": 1,
+        "stackSide": "none",
+        "primarySide": "right",
+        "mullionMode": "flying_mullion",
+        "openPlane": "in",
+        "operationPriority": "turn_first",
+        "ventilationMode": "tilt",
+        "trafficDoor": "none",
+        "screenMode": "none",
+        "cornerAngleDeg": 90,
+        "cornerPostMode": "postless",
+        "pocketDepthMm": 0,
+        "openPercent": 80,
+        "panels": [
+          {
+            "id": "P1",
+            "label": "1号扇",
+            "role": "secondary",
+            "movable": true,
+            "hingeSide": "left",
+            "trackIndex": 0,
+            "operationOrder": 1
+          },
+          {
+            "id": "P2",
+            "label": "2号扇",
+            "role": "primary",
+            "movable": true,
+            "hingeSide": "right",
+            "trackIndex": 0,
+            "operationOrder": 0
+          }
+        ],
+        "operationSequence": [
+          "P2",
+          "P1"
+        ]
+      },
+      "infillType": "glass",
+      "accessories": {
+        "grille": false,
+        "screenMode": "none",
+        "securityBars": false,
+        "frosted": false
+      },
+      "widthMm": 1460,
+      "heightMm": 1360
+    }
+  ],
+  "mbom": {
+    "version": 1,
+    "status": "calculated",
+    "generatedAt": "<generated-at>",
+    "lines": [
+      {
+        "lineId": "MBOM-0001",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "frame.top",
+        "category": "profile",
+        "materialCode": "AL70-K01",
+        "name": "上框",
+        "spec": "70断桥铝系统窗",
+        "material": "铝合金",
+        "color": "RAL9016/RAL7016",
+        "lengthMm": 1600,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 45,
+        "cutRightDeg": 45,
+        "grossLengthMm": 1744,
+        "quantity": 1,
+        "unit": "pcs"
+      },
+      {
+        "lineId": "MBOM-0002",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "frame.bottom",
+        "category": "profile",
+        "materialCode": "AL70-K01",
+        "name": "下框",
+        "spec": "70断桥铝系统窗",
+        "material": "铝合金",
+        "color": "RAL9016/RAL7016",
+        "lengthMm": 1600,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 45,
+        "cutRightDeg": 45,
+        "grossLengthMm": 1744,
+        "quantity": 1,
+        "unit": "pcs"
+      },
+      {
+        "lineId": "MBOM-0003",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "frame.left",
+        "category": "profile",
+        "materialCode": "AL70-K01",
+        "name": "左框",
+        "spec": "70断桥铝系统窗",
+        "material": "铝合金",
+        "color": "RAL9016/RAL7016",
+        "lengthMm": 1500,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 45,
+        "cutRightDeg": 45,
+        "grossLengthMm": 1644,
+        "quantity": 1,
+        "unit": "pcs"
+      },
+      {
+        "lineId": "MBOM-0004",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "frame.right",
+        "category": "profile",
+        "materialCode": "AL70-K01",
+        "name": "右框",
+        "spec": "70断桥铝系统窗",
+        "material": "铝合金",
+        "color": "RAL9016/RAL7016",
+        "lengthMm": 1500,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 45,
+        "cutRightDeg": 45,
+        "grossLengthMm": 1644,
+        "quantity": 1,
+        "unit": "pcs"
+      },
+      {
+        "lineId": "MBOM-0005",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "cell.1.1.sash.top",
+        "category": "profile",
+        "materialCode": "AL70-S01",
+        "name": "扇上料",
+        "spec": "70断桥铝系统窗",
+        "material": "铝合金",
+        "color": "RAL9016/RAL7016",
+        "lengthMm": 730,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 45,
+        "cutRightDeg": 45,
+        "grossLengthMm": 874,
+        "quantity": 2,
+        "unit": "pcs"
+      },
+      {
+        "lineId": "MBOM-0006",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "cell.1.1.sash.bottom",
+        "category": "profile",
+        "materialCode": "AL70-S01",
+        "name": "扇下料",
+        "spec": "70断桥铝系统窗",
+        "material": "铝合金",
+        "color": "RAL9016/RAL7016",
+        "lengthMm": 730,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 45,
+        "cutRightDeg": 45,
+        "grossLengthMm": 874,
+        "quantity": 2,
+        "unit": "pcs"
+      },
+      {
+        "lineId": "MBOM-0007",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "cell.1.1.sash.left",
+        "category": "profile",
+        "materialCode": "AL70-S01",
+        "name": "扇左料",
+        "spec": "70断桥铝系统窗",
+        "material": "铝合金",
+        "color": "RAL9016/RAL7016",
+        "lengthMm": 1360,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 45,
+        "cutRightDeg": 45,
+        "grossLengthMm": 1504,
+        "quantity": 2,
+        "unit": "pcs"
+      },
+      {
+        "lineId": "MBOM-0008",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "cell.1.1.sash.right",
+        "category": "profile",
+        "materialCode": "AL70-S01",
+        "name": "扇右料",
+        "spec": "70断桥铝系统窗",
+        "material": "铝合金",
+        "color": "RAL9016/RAL7016",
+        "lengthMm": 1360,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 45,
+        "cutRightDeg": 45,
+        "grossLengthMm": 1504,
+        "quantity": 2,
+        "unit": "pcs"
+      },
+      {
+        "lineId": "MBOM-0009",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "cell.1.1.handle",
+        "category": "hardware",
+        "materialCode": "HW-BS-01",
+        "name": "内开内倒标准五金",
+        "spec": "内开内倒",
+        "material": "五金",
+        "color": "",
+        "lengthMm": 0,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 0,
+        "cutRightDeg": 0,
+        "grossLengthMm": 0,
+        "quantity": 2,
+        "unit": "set"
+      },
+      {
+        "lineId": "MBOM-0010",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "cell.1.1.hinge",
+        "category": "hardware",
+        "materialCode": "HW-HJ-70",
+        "name": "传动器/铰链",
+        "spec": "内开内倒标准五金",
+        "material": "五金",
+        "color": "",
+        "lengthMm": 0,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 0,
+        "cutRightDeg": 0,
+        "grossLengthMm": 0,
+        "quantity": 4,
+        "unit": "pcs"
+      },
+      {
+        "lineId": "MBOM-0011",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "cell.1.1.flyingMullion",
+        "category": "profile",
+        "materialCode": "AL70-Z01",
+        "name": "假中梃",
+        "spec": "70断桥铝系统窗",
+        "material": "铝合金",
+        "color": "RAL9016/RAL7016",
+        "lengthMm": 1360,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 45,
+        "cutRightDeg": 45,
+        "grossLengthMm": 1504,
+        "quantity": 1,
+        "unit": "pcs"
+      },
+      {
+        "lineId": "MBOM-0012",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "cell.1.1.glass",
+        "category": "glass",
+        "materialCode": "GL-LOWE-24",
+        "name": "5+14A+5 Low-E",
+        "spec": "650x1280x24",
+        "material": "玻璃",
+        "color": "",
+        "lengthMm": 0,
+        "widthMm": 650,
+        "heightMm": 1280,
+        "cutLeftDeg": 0,
+        "cutRightDeg": 0,
+        "grossLengthMm": 0,
+        "quantity": 2,
+        "unit": "pcs",
+        "areaM2": 0.832
+      },
+      {
+        "lineId": "MBOM-0013",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "cell.1.1.glass.gasket",
+        "category": "gasket",
+        "materialCode": "EPDM-70",
+        "name": "玻璃胶条",
+        "spec": "5+14A+5 Low-E",
+        "material": "EPDM",
+        "color": "黑色",
+        "lengthMm": 3860,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 0,
+        "cutRightDeg": 0,
+        "grossLengthMm": 0,
+        "quantity": 7.7,
+        "unit": "m"
+      },
+      {
+        "lineId": "MBOM-0014",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "cell.1.1.glass.bead.h",
+        "category": "bead",
+        "materialCode": "AL70-YT01",
+        "name": "玻璃压条-横",
+        "spec": "5+14A+5 Low-E",
+        "material": "铝合金",
+        "color": "RAL9016/RAL7016",
+        "lengthMm": 650,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 45,
+        "cutRightDeg": 45,
+        "grossLengthMm": 794,
+        "quantity": 4,
+        "unit": "pcs"
+      },
+      {
+        "lineId": "MBOM-0015",
+        "sourceWindowId": "W-TT-DOUBLE-006",
+        "sourceMark": "C6",
+        "sourceComponentId": "cell.1.1.glass.bead.v",
+        "category": "bead",
+        "materialCode": "AL70-YT01",
+        "name": "玻璃压条-竖",
+        "spec": "5+14A+5 Low-E",
+        "material": "铝合金",
+        "color": "RAL9016/RAL7016",
+        "lengthMm": 1280,
+        "widthMm": 0,
+        "heightMm": 0,
+        "cutLeftDeg": 45,
+        "cutRightDeg": 45,
+        "grossLengthMm": 1424,
+        "quantity": 4,
+        "unit": "pcs"
+      }
+    ]
+  },
+  "assemblies": [],
+  "summary": [
+    {
+      "category": "bead",
+      "materialCode": "AL70-YT01",
+      "name": "玻璃压条-横",
+      "spec": "5+14A+5 Low-E",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 650,
+      "widthMm": 0,
+      "heightMm": 0,
+      "unit": "pcs",
+      "quantity": 4
+    },
+    {
+      "category": "bead",
+      "materialCode": "AL70-YT01",
+      "name": "玻璃压条-竖",
+      "spec": "5+14A+5 Low-E",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1280,
+      "widthMm": 0,
+      "heightMm": 0,
+      "unit": "pcs",
+      "quantity": 4
+    },
+    {
+      "category": "gasket",
+      "materialCode": "EPDM-70",
+      "name": "玻璃胶条",
+      "spec": "5+14A+5 Low-E",
+      "color": "黑色",
+      "lengthMm": 3860,
+      "widthMm": 0,
+      "heightMm": 0,
+      "unit": "m",
+      "quantity": 7.7
+    },
+    {
+      "category": "glass",
+      "materialCode": "GL-LOWE-24",
+      "name": "5+14A+5 Low-E",
+      "spec": "650x1280x24",
+      "color": "",
+      "lengthMm": 0,
+      "widthMm": 650,
+      "heightMm": 1280,
+      "unit": "pcs",
+      "quantity": 2
+    },
+    {
+      "category": "hardware",
+      "materialCode": "HW-BS-01",
+      "name": "内开内倒标准五金",
+      "spec": "内开内倒",
+      "color": "",
+      "lengthMm": 0,
+      "widthMm": 0,
+      "heightMm": 0,
+      "unit": "set",
+      "quantity": 2
+    },
+    {
+      "category": "hardware",
+      "materialCode": "HW-HJ-70",
+      "name": "传动器/铰链",
+      "spec": "内开内倒标准五金",
+      "color": "",
+      "lengthMm": 0,
+      "widthMm": 0,
+      "heightMm": 0,
+      "unit": "pcs",
+      "quantity": 4
+    },
+    {
+      "category": "profile",
+      "materialCode": "AL70-K01",
+      "name": "上框",
+      "spec": "70断桥铝系统窗",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1600,
+      "widthMm": 0,
+      "heightMm": 0,
+      "unit": "pcs",
+      "quantity": 2
+    },
+    {
+      "category": "profile",
+      "materialCode": "AL70-K01",
+      "name": "左框",
+      "spec": "70断桥铝系统窗",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1500,
+      "widthMm": 0,
+      "heightMm": 0,
+      "unit": "pcs",
+      "quantity": 2
+    },
+    {
+      "category": "profile",
+      "materialCode": "AL70-S01",
+      "name": "扇上料",
+      "spec": "70断桥铝系统窗",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 730,
+      "widthMm": 0,
+      "heightMm": 0,
+      "unit": "pcs",
+      "quantity": 4
+    },
+    {
+      "category": "profile",
+      "materialCode": "AL70-S01",
+      "name": "扇左料",
+      "spec": "70断桥铝系统窗",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1360,
+      "widthMm": 0,
+      "heightMm": 0,
+      "unit": "pcs",
+      "quantity": 4
+    },
+    {
+      "category": "profile",
+      "materialCode": "AL70-Z01",
+      "name": "假中梃",
+      "spec": "70断桥铝系统窗",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1360,
+      "widthMm": 0,
+      "heightMm": 0,
+      "unit": "pcs",
+      "quantity": 1
+    }
+  ],
+  "cutRequirements": [
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "sourceComponentId": "frame.top",
+      "materialCode": "AL70-K01",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1600,
+      "cutLeftDeg": 45,
+      "cutRightDeg": 45,
+      "quantity": 1
+    },
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "sourceComponentId": "frame.bottom",
+      "materialCode": "AL70-K01",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1600,
+      "cutLeftDeg": 45,
+      "cutRightDeg": 45,
+      "quantity": 1
+    },
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "sourceComponentId": "frame.left",
+      "materialCode": "AL70-K01",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1500,
+      "cutLeftDeg": 45,
+      "cutRightDeg": 45,
+      "quantity": 1
+    },
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "sourceComponentId": "frame.right",
+      "materialCode": "AL70-K01",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1500,
+      "cutLeftDeg": 45,
+      "cutRightDeg": 45,
+      "quantity": 1
+    },
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "sourceComponentId": "cell.1.1.sash.top",
+      "materialCode": "AL70-S01",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 730,
+      "cutLeftDeg": 45,
+      "cutRightDeg": 45,
+      "quantity": 2
+    },
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "sourceComponentId": "cell.1.1.sash.bottom",
+      "materialCode": "AL70-S01",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 730,
+      "cutLeftDeg": 45,
+      "cutRightDeg": 45,
+      "quantity": 2
+    },
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "sourceComponentId": "cell.1.1.sash.left",
+      "materialCode": "AL70-S01",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1360,
+      "cutLeftDeg": 45,
+      "cutRightDeg": 45,
+      "quantity": 2
+    },
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "sourceComponentId": "cell.1.1.sash.right",
+      "materialCode": "AL70-S01",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1360,
+      "cutLeftDeg": 45,
+      "cutRightDeg": 45,
+      "quantity": 2
+    },
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "sourceComponentId": "cell.1.1.flyingMullion",
+      "materialCode": "AL70-Z01",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1360,
+      "cutLeftDeg": 45,
+      "cutRightDeg": 45,
+      "quantity": 1
+    },
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "sourceComponentId": "cell.1.1.glass.bead.h",
+      "materialCode": "AL70-YT01",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 650,
+      "cutLeftDeg": 45,
+      "cutRightDeg": 45,
+      "quantity": 4
+    },
+    {
+      "sourceWindowId": "W-TT-DOUBLE-006",
+      "sourceComponentId": "cell.1.1.glass.bead.v",
+      "materialCode": "AL70-YT01",
+      "color": "RAL9016/RAL7016",
+      "lengthMm": 1280,
+      "cutLeftDeg": 45,
+      "cutRightDeg": 45,
+      "quantity": 4
+    }
+  ]
+}
