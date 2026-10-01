@@ -63,16 +63,22 @@ export function mountDesktopLayoutShell(
     <header class="shell__header">
       <div class="desktop-shell__identity">
         <span class="desktop-shell__brand-mark" aria-hidden="true">DM</span>
-        <h1 class="shell__title">DoorMes</h1>
-        <span class="shell__badge">工厂产品设计</span>
+        <div class="desktop-shell__brand-copy">
+          <h1 class="shell__title">DoorMes</h1>
+          <span>WINDOW DESIGN STUDIO</span>
+        </div>
+      </div>
+      <div class="desktop-shell__workspace-title">
+        <span>工厂设计</span>
+        <strong>门窗产品工作台</strong>
       </div>
       <output class="desktop-shell__document-status" data-document-status aria-live="polite"></output>
     </header>
     <div class="desktop-shell__workspace">
       <aside class="shell-panel desktop-shell__left-panel">
         <div class="desktop-shell__panel-heading">
-          <span>设计输入 · 01</span>
-          <h2>产品与构造</h2>
+          <span>01 · 产品定义</span>
+          <h2>新建设计</h2>
         </div>
         <p class="desktop-shell__panel-intro">先定义窗体和组合关系，再在画布中完成分格与构件设计。</p>
         <form class="shell-form" data-create-window-form>
@@ -122,8 +128,8 @@ export function mountDesktopLayoutShell(
       <aside class="shell-panel desktop-shell__right-panel">
         <section class="desktop-shell__panel-section desktop-shell__panel-section--tree">
           <div class="desktop-shell__panel-heading desktop-shell__panel-heading--compact">
-            <span>结构导航 · 02</span>
-            <h2>设计结构</h2>
+            <span>02 · 结构导航</span>
+            <h2>构件树</h2>
           </div>
           <p>窗体、组合连接及其构件；选择后可查看和编辑。</p>
           <div data-object-tree></div>
