@@ -1,9 +1,16 @@
-import type {
-  DesignSelectionStore,
-  DesignSession
+import {
+  createUpdateFactoryDrawingAnnotationLayoutCommand,
+  type DesignSelectionStore,
+  type DesignSession
 } from "@doormes/application";
-import type { DesignDocument, WindowUnit } from "@doormes/contracts";
-import type { FactoryDrawingProductionSnapshot } from "@doormes/drawing-projection";
+import type {
+  DesignDocument,
+  WindowUnit
+} from "@doormes/contracts";
+import type {
+  FactoryComponentCalloutMode,
+  FactoryDrawingProductionSnapshot
+} from "@doormes/drawing-projection";
 import { resolveWindowGeometry } from "@doormes/geometry-topology";
 import type { ProjectFileStatusReporter } from "./project-file-controls";
 
@@ -237,17 +244,41 @@ export function mountFactoryDrawingControls(
   previewStage.append(previewFrame);
   const dialogActions = document.createElement("footer");
   dialogActions.className = "factory-drawing-dialog__actions";
+  const statusGroup = document.createElement("div");
+  statusGroup.className = "factory-drawing-dialog__status";
   const snapshotStatus = document.createElement("span");
   snapshotStatus.textContent = "尚未生成图纸";
+  const interactionHint = document.createElement("span");
+  interactionHint.textContent = "编号自动避让；可在图上拖动后锁定";
+  statusGroup.append(snapshotStatus, interactionHint);
   const actionGroup = document.createElement("div");
+  const calloutModeLabel = document.createElement("label");
+  calloutModeLabel.textContent = "图面编号";
+  const calloutModeSelect = document.createElement("select");
+  const calloutModeOptions: readonly [FactoryComponentCalloutMode, string][] = [
+    ["all", "全部"],
+    ["profiles", "型材/连接"],
+    ["glass-hardware", "玻璃/五金"],
+    ["selected", "仅当前选择"]
+  ];
+  calloutModeOptions.forEach(([value, label]) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    calloutModeSelect.append(option);
+  });
+  calloutModeLabel.append(calloutModeSelect);
+  const resetLayoutButton = document.createElement("button");
+  resetLayoutButton.type = "button";
+  resetLayoutButton.textContent = "自动重排编号";
   const downloadButton = document.createElement("button");
   downloadButton.type = "button";
   downloadButton.textContent = "下载SVG";
   const printButton = document.createElement("button");
   printButton.type = "button";
   printButton.textContent = "打印 / 另存PDF";
-  actionGroup.append(downloadButton, printButton);
-  dialogActions.append(snapshotStatus, actionGroup);
+  actionGroup.append(calloutModeLabel, resetLayoutButton, downloadButton, printButton);
+  dialogActions.append(statusGroup, actionGroup);
   dialog.append(dialogHeader, previewStage, dialogActions);
   document.body.append(dialog);
 
@@ -255,6 +286,8 @@ export function mountFactoryDrawingControls(
   let exporting = false;
   let previewLoaded = false;
   let artifact: FactoryDrawingPreviewArtifact | undefined;
+  let commandSequence = 0;
+  let disposePreviewInteractions = (): void => undefined;
   const updateState = (): void => {
     const subjectId = resolveFactoryDrawingSubjectId(session.document, selectedObjectId);
     exportButton.disabled = exporting || !subjectId;
@@ -263,6 +296,8 @@ export function mountFactoryDrawingControls(
       : "请先选择一樘独立窗或一个连接组合";
     downloadButton.disabled = !artifact;
     printButton.disabled = !artifact || !previewLoaded;
+    resetLayoutButton.disabled = exporting ||
+      !(session.document.factoryDrawingAnnotationLayouts?.some((layout) => layout.locked));
   };
   const disposeSelection = selection.subscribe((state) => {
     selectedObjectId = state.objectId;
@@ -292,7 +327,9 @@ export function mountFactoryDrawingControls(
         subjectId
       );
       const sheets = projectFactoryDrawingSheets(session.document, subjectId, {
-        ...(productionSnapshot ? { productionSnapshot } : {})
+        ...(productionSnapshot ? { productionSnapshot } : {}),
+        componentCalloutMode: calloutModeSelect.value as FactoryComponentCalloutMode,
+        selectedObjectIds: selectedObjectId ? [selectedObjectId] : []
       });
       const sheet = sheets[0]!;
       const sources = sheets.map((candidate) => renderTechnicalDrawingSheetSvg(candidate));
@@ -330,7 +367,139 @@ export function mountFactoryDrawingControls(
 
   const onPreviewLoaded = (): void => {
     previewLoaded = true;
+    disposePreviewInteractions();
+    const frameDocument = previewFrame.contentDocument;
+    const frameWindow = previewFrame.contentWindow;
+    if (frameDocument && frameWindow) {
+      type ActiveDrag = {
+        readonly group: SVGGElement;
+        readonly svg: SVGSVGElement;
+        readonly annotationId: string;
+        readonly pointerId: number;
+        readonly startClientX: number;
+        readonly startClientY: number;
+        readonly baseOffsetX: number;
+        readonly baseOffsetY: number;
+        readonly originalTransform: string | null;
+        moved: boolean;
+      };
+      let active: ActiveDrag | undefined;
+      const paperDelta = (
+        svg: SVGSVGElement,
+        clientX: number,
+        clientY: number,
+        startClientX: number,
+        startClientY: number
+      ): Readonly<{ x: number; y: number }> => {
+        const bounds = svg.getBoundingClientRect();
+        const viewBox = svg.viewBox.baseVal;
+        return {
+          x: bounds.width > 0 ? (clientX - startClientX) * viewBox.width / bounds.width : 0,
+          y: bounds.height > 0 ? (clientY - startClientY) * viewBox.height / bounds.height : 0
+        };
+      };
+      const onPointerDown = (event: PointerEvent): void => {
+        const target = event.target as Element | null;
+        const group = typeof target?.closest === "function" ? target.closest<SVGGElement>(
+          "g.technical-callout--component-callout[data-annotation-id][data-label-offset-x][data-label-offset-y]"
+        ) : null;
+        if (!group || !group.dataset.sourceObjectIds?.includes("PI-LOCAL-")) return;
+        const svg = group.ownerSVGElement;
+        const annotationId = group.dataset.annotationId;
+        const baseOffsetX = Number(group.dataset.labelOffsetX);
+        const baseOffsetY = Number(group.dataset.labelOffsetY);
+        if (!svg || !annotationId || !Number.isFinite(baseOffsetX) || !Number.isFinite(baseOffsetY)) {
+          return;
+        }
+        active = {
+          group,
+          svg,
+          annotationId,
+          pointerId: event.pointerId,
+          startClientX: event.clientX,
+          startClientY: event.clientY,
+          baseOffsetX,
+          baseOffsetY,
+          originalTransform: group.getAttribute("transform"),
+          moved: false
+        };
+        group.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+      };
+      const onPointerMove = (event: PointerEvent): void => {
+        if (!active || active.pointerId !== event.pointerId) return;
+        const delta = paperDelta(
+          active.svg,
+          event.clientX,
+          event.clientY,
+          active.startClientX,
+          active.startClientY
+        );
+        active.moved = active.moved || Math.hypot(delta.x, delta.y) >= 0.5;
+        active.group.setAttribute("transform", `translate(${delta.x} ${delta.y})`);
+        event.preventDefault();
+      };
+      const finishDrag = (event: PointerEvent): void => {
+        if (!active || active.pointerId !== event.pointerId) return;
+        const completed = active;
+        active = undefined;
+        const delta = paperDelta(
+          completed.svg,
+          event.clientX,
+          event.clientY,
+          completed.startClientX,
+          completed.startClientY
+        );
+        if (completed.originalTransform === null) completed.group.removeAttribute("transform");
+        else completed.group.setAttribute("transform", completed.originalTransform);
+        if (!completed.moved) return;
+        commandSequence += 1;
+        session.execute(createUpdateFactoryDrawingAnnotationLayoutCommand({
+          commandId: `CMD-FACTORY-CALLOUT-LAYOUT-${commandSequence}`,
+          annotationId: completed.annotationId,
+          offsetPaperMm: {
+            x: completed.baseOffsetX + delta.x,
+            y: completed.baseOffsetY + delta.y
+          },
+          locked: true
+        }));
+        void onPreview();
+      };
+      frameDocument.addEventListener("pointerdown", onPointerDown);
+      frameDocument.addEventListener("pointermove", onPointerMove);
+      frameDocument.addEventListener("pointerup", finishDrag);
+      frameDocument.addEventListener("pointercancel", finishDrag);
+      frameDocument.querySelectorAll<SVGGElement>(
+        "g.technical-callout--component-callout[data-source-object-ids*='PI-LOCAL-']"
+      ).forEach((group) => {
+        group.style.cursor = "grab";
+        group.style.touchAction = "none";
+      });
+      disposePreviewInteractions = () => {
+        frameDocument.removeEventListener("pointerdown", onPointerDown);
+        frameDocument.removeEventListener("pointermove", onPointerMove);
+        frameDocument.removeEventListener("pointerup", finishDrag);
+        frameDocument.removeEventListener("pointercancel", finishDrag);
+      };
+    }
     updateState();
+  };
+  const onResetLayout = (): void => {
+    const locked = session.document.factoryDrawingAnnotationLayouts?.filter(
+      (layout) => layout.locked
+    ) ?? [];
+    if (!locked.length) return;
+    const commands = locked.map((layout) => {
+      commandSequence += 1;
+      return createUpdateFactoryDrawingAnnotationLayoutCommand({
+        commandId: `CMD-FACTORY-CALLOUT-RESET-${commandSequence}`,
+        annotationId: layout.annotationId,
+        offsetPaperMm: { x: 0, y: 0 },
+        locked: false
+      });
+    });
+    session.executeTransaction(commands, `TX-FACTORY-CALLOUT-RESET-${commandSequence}`);
+    void onPreview();
   };
   const onDownload = (): void => {
     if (!artifact) return;
@@ -367,9 +536,14 @@ export function mountFactoryDrawingControls(
     report("ready", `已打开打印窗口；可选择打印机或“另存为PDF” · r${artifact.sourceRevision}`);
   };
   const onClose = (): void => dialog.close();
+  const onCalloutModeChange = (): void => {
+    if (dialog.open) void onPreview();
+  };
 
   exportButton.addEventListener("click", onPreview);
   previewFrame.addEventListener("load", onPreviewLoaded);
+  calloutModeSelect.addEventListener("change", onCalloutModeChange);
+  resetLayoutButton.addEventListener("click", onResetLayout);
   downloadButton.addEventListener("click", onDownload);
   printButton.addEventListener("click", onPrint);
   closeButton.addEventListener("click", onClose);
@@ -377,11 +551,14 @@ export function mountFactoryDrawingControls(
   return () => {
     exportButton.removeEventListener("click", onPreview);
     previewFrame.removeEventListener("load", onPreviewLoaded);
+    calloutModeSelect.removeEventListener("change", onCalloutModeChange);
+    resetLayoutButton.removeEventListener("click", onResetLayout);
     downloadButton.removeEventListener("click", onDownload);
     printButton.removeEventListener("click", onPrint);
     closeButton.removeEventListener("click", onClose);
     disposeSelection();
     disposeSession();
+    disposePreviewInteractions();
     if (dialog.open) dialog.close();
     dialog.remove();
     controls.remove();

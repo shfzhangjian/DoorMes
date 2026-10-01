@@ -83,7 +83,18 @@ export interface FactoryElevationSheetOptions {
   readonly drawingVersion?: string;
   /** Optional formal calculation snapshot used for per-piece dimensions and identity. */
   readonly productionSnapshot?: FactoryDrawingProductionSnapshot;
+  /** Controls which calculated physical-piece numbers are printed around the elevation. */
+  readonly componentCalloutMode?: FactoryComponentCalloutMode;
+  /** Shared design IDs used by `selected` callout mode. */
+  readonly selectedObjectIds?: readonly string[];
 }
+
+/** Readability filters for calculated component marks on the elevation sheet. */
+export type FactoryComponentCalloutMode =
+  | "all"
+  | "profiles"
+  | "glass-hardware"
+  | "selected";
 
 interface FactoryElevationSubject {
   readonly objectId: string;
@@ -188,36 +199,6 @@ function tableColumns(
       : widthPaperMm * item.ratio / ratioTotal,
     ...(item.align ? { align: item.align } : {})
   }));
-}
-
-/**
- * Keeps a single sheet readable while explicitly reporting deferred rows.
- *
- * The final summary row is not a silent truncation: it tells operators that a
- * later multi-sheet schedule is required before release. Source rows remain in
- * the formal result and are never deleted by this print projection.
- *
- * @example 20 MBOM groups with limit 16 print 15 groups plus `另有5行`.
- * @since 0.2.0
- * @modified 2026-09-21 - Added honest first-page overflow handling.
- */
-function limitTableRows(
-  rows: readonly DrawingTableRow[],
-  maximumRows: number,
-  columnCount: number,
-  summaryRowId: string
-): readonly DrawingTableRow[] {
-  if (rows.length <= maximumRows) return rows;
-  const retained = rows.slice(0, maximumRows - 1);
-  const cells = Array.from({ length: columnCount }, () => "");
-  cells[0] = "…";
-  cells[columnCount - 1] = `另有 ${rows.length - retained.length} 行`;
-  return [...retained, {
-    rowId: summaryRowId,
-    sourceObjectIds: [],
-    cells,
-    severity: "warning"
-  }];
 }
 
 /**
@@ -348,6 +329,216 @@ function featureRemark(
   return remarks.profile;
 }
 
+function factoryElementOptions(document: DesignDocument, objectId: string) {
+  return document.factoryDrawingElementOptions?.find((item) => item.objectId === objectId);
+}
+
+/** Resolves stable selectable IDs represented by one calculated workpiece. */
+function featureDrawingObjectIds(
+  feature: ManufacturingFeature,
+  subject: FactoryElevationSubject
+): readonly string[] {
+  const ids = new Set<string>(feature.sourceObjectIds);
+  if (feature.kind === "engineering-joint-material") ids.add(feature.jointId);
+  // Manufacturing features keep their owning window as the first trace ID;
+  // `sourceWindowId` exists on expanded production instances, not on the
+  // feature union itself. Resolving from the trace makes exact frame/sash/cell
+  // options work before and after physical-instance expansion.
+  const sourceWindowId = feature.sourceObjectIds[0];
+  const placement = sourceWindowId
+    ? subject.windowPlacements.find(
+        (candidate) => candidate.window.objectId === sourceWindowId
+      )
+    : undefined;
+  if (!placement) return [...ids];
+  ids.add(placement.window.objectId);
+  const component = feature.sourceComponentId;
+  placement.geometry.frames
+    .filter((item) => item.sourceComponentId === component)
+    .forEach((item) => ids.add(item.objectId));
+  placement.geometry.members
+    .filter((item) => item.sourceComponentId === component)
+    .forEach((item) => ids.add(item.objectId));
+  placement.geometry.meetingMullions
+    .filter((item) => component.includes(item.sourceComponentId))
+    .forEach((item) => ids.add(item.objectId));
+  const cell = resolveFeatureCell(component, placement.geometry);
+  if (cell) ids.add(cell.objectId);
+  placement.geometry.openings
+    .filter((opening) => component.includes(opening.sourceComponentId))
+    .forEach((opening) => ids.add(`${opening.objectId}::${opening.panelId}`));
+  placement.geometry.hardware
+    .filter((hardware) => component.includes(hardware.sourceComponentId) ||
+      hardware.sourceComponentId.includes(component))
+    .forEach((hardware) => ids.add(hardware.hardwareId));
+  return [...ids];
+}
+
+/** Returns the compact factory-drawing category token for one physical item. */
+function factoryComponentNumberCode(feature: ManufacturingFeature): string {
+  const component = feature.sourceComponentId.toLowerCase();
+  if (feature.kind === "profile-cut") {
+    if (feature.category === "bead") return "BD";
+    if (component.startsWith("frame.")) return "FR";
+    if (component.includes(".sash.")) return "SA";
+    if (component.includes("mullion") || component.includes("member")) return "MU";
+    return "PR";
+  }
+  if (feature.kind === "glass-panel") return "GL";
+  if (feature.kind === "seal-path") return "SE";
+  if (feature.kind === "hardware-demand") {
+    if (component.endsWith(".handle")) return "HD";
+    if (component.endsWith(".hinge")) return "HG";
+    return "HW";
+  }
+  if (feature.kind === "installation-material") {
+    return feature.category === "panel" ? "PN" : feature.category === "profile" ? "TR" : "IN";
+  }
+  const codes: Readonly<Record<EngineeringJointMaterialFeature["role"], string>> = {
+    connector: "JT",
+    reinforcement: "RF",
+    fastener: "FT",
+    seal: "JS",
+    cover: "CV"
+  };
+  return codes[feature.role];
+}
+
+/** Keeps readable window/assembly hierarchy while removing unsafe punctuation. */
+function factoryComponentNumberRoot(value: string): string {
+  return value.normalize("NFKC").toUpperCase().replace(/[^A-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "W";
+}
+
+/** Resolves a user number only from the exact part, never from its parent window. */
+function customFactoryComponentNumber(
+  document: DesignDocument,
+  feature: ManufacturingFeature,
+  subject: FactoryElevationSubject
+): string | undefined {
+  const parentIds = new Set([
+    subject.objectId,
+    ...subject.windowPlacements.map((placement) => placement.window.objectId)
+  ]);
+  const values = featureDrawingObjectIds(feature, subject)
+    .filter((objectId) => !parentIds.has(objectId))
+    .flatMap((objectId) => {
+      const value = factoryElementOptions(document, objectId)?.factoryDrawingNumber;
+      return value ? [value] : [];
+    });
+  const unique = [...new Set(values)];
+  if (unique.length > 1) {
+    throw new Error(
+      `Factory component ${feature.featureId} has conflicting user drawing numbers: ${unique.join(", ")}.`
+    );
+  }
+  return unique[0];
+}
+
+/**
+ * Separates hidden physical identity from the short number printed on drawings.
+ *
+ * Numbering is computed over every item in the product before visibility filters
+ * are applied, so hiding a row never renumbers the remaining pieces. User marks
+ * reserve their exact value; generated marks skip those reservations.
+ */
+function createFactoryComponentNumbers(input: Readonly<{
+  document: DesignDocument;
+  subject: FactoryElevationSubject;
+  windows: readonly WindowUnit[];
+  result: FormalBomResult;
+}>): ReadonlyMap<string, string> {
+  const windowIds = new Set(input.windows.map((window) => window.objectId));
+  const featureById = new Map(input.result.features.map((feature) => [feature.featureId, feature]));
+  const entries = input.result.productionInstances.flatMap((instance) => {
+    const feature = featureById.get(instance.sourceFeatureId);
+    if (!feature) return [];
+    const belongsToWindow = windowIds.has(instance.sourceWindowId);
+    const belongsToAssembly = feature.kind === "engineering-joint-material" &&
+      feature.assemblyId === input.subject.objectId;
+    if (!belongsToWindow && !belongsToAssembly) return [];
+    if (feature.kind === "engineering-joint-material" && !belongsToAssembly) return [];
+    return [{
+      instance,
+      feature,
+      custom: customFactoryComponentNumber(input.document, feature, input.subject)
+    }];
+  });
+  const customCounts = new Map<string, number>();
+  entries.forEach((entry) => {
+    if (entry.custom) customCounts.set(entry.custom, (customCounts.get(entry.custom) ?? 0) + 1);
+  });
+  const customSequences = new Map<string, number>();
+  const numbers = new Map<string, string>();
+  const used = new Set<string>();
+  entries.forEach((entry) => {
+    if (!entry.custom) return;
+    const sequence = (customSequences.get(entry.custom) ?? 0) + 1;
+    customSequences.set(entry.custom, sequence);
+    const number = (customCounts.get(entry.custom) ?? 0) > 1
+      ? `${entry.custom}-${String(sequence).padStart(2, "0")}`
+      : entry.custom;
+    numbers.set(entry.instance.productionInstanceId, number);
+    used.add(number);
+  });
+  const generatedSequences = new Map<string, number>();
+  entries.forEach((entry) => {
+    if (entry.custom) return;
+    const root = factoryComponentNumberRoot(entry.feature.sourceMark);
+    const base = `${root}-${factoryComponentNumberCode(entry.feature)}`;
+    let sequence = (generatedSequences.get(base) ?? 0) + 1;
+    let number = `${base}${String(sequence).padStart(2, "0")}`;
+    while (used.has(number)) {
+      sequence += 1;
+      number = `${base}${String(sequence).padStart(2, "0")}`;
+    }
+    generatedSequences.set(base, sequence);
+    numbers.set(entry.instance.productionInstanceId, number);
+    used.add(number);
+  });
+  if (numbers.size !== entries.length || used.size !== entries.length) {
+    throw new Error("Factory drawing component numbers must be unique.");
+  }
+  return numbers;
+}
+
+function showsFactoryTableRow(
+  document: DesignDocument,
+  feature: ManufacturingFeature,
+  subject: FactoryElevationSubject
+): boolean {
+  return !featureDrawingObjectIds(feature, subject).some(
+    (objectId) => factoryElementOptions(document, objectId)?.showInComponentTable === false
+  );
+}
+
+function showsFactoryDimension(document: DesignDocument, annotation: DrawingAnnotation): boolean {
+  if (annotation.kind !== "linear-dimension") return true;
+  return !annotation.sourceObjectIds.some(
+    (objectId) => factoryElementOptions(document, objectId)?.showDimensions === false
+  );
+}
+
+/** Keeps drawing callout numbers traceable to rows on the independent schedule pages. */
+function showsFactoryComponentCallout(
+  document: DesignDocument,
+  annotation: DrawingAnnotation
+): boolean {
+  if (annotation.kind !== "component-callout") return true;
+  return !annotation.sourceObjectIds.some(
+    (objectId) => factoryElementOptions(document, objectId)?.showInComponentTable === false
+  );
+}
+
+/** Applies the two independent per-element output controls to one annotation. */
+function showsFactoryAnnotation(
+  document: DesignDocument,
+  annotation: DrawingAnnotation
+): boolean {
+  return showsFactoryDimension(document, annotation) &&
+    showsFactoryComponentCallout(document, annotation);
+}
+
 /**
  * Projects calculated physical pieces instead of presenting one profile system as one part.
  *
@@ -358,12 +549,14 @@ function featureRemark(
  * it deliberately contains no release state, route or process status.
  */
 function createCalculatedComponentRows(input: Readonly<{
+  document: DesignDocument;
   subject: FactoryElevationSubject;
   windows: readonly WindowUnit[];
   result: FormalBomResult;
 }>): readonly DrawingTableRow[] {
   const windowIds = new Set(input.windows.map((window) => window.objectId));
   const featureById = new Map(input.result.features.map((feature) => [feature.featureId, feature]));
+  const componentNumbers = createFactoryComponentNumbers(input);
   const rows = input.result.productionInstances.flatMap((instance): DrawingTableRow[] => {
     const feature = featureById.get(instance.sourceFeatureId);
     if (!feature) return [];
@@ -372,16 +565,19 @@ function createCalculatedComponentRows(input: Readonly<{
       feature.assemblyId === input.subject.objectId;
     if (!belongsToWindow && !belongsToAssembly) return [];
     if (feature.kind === "engineering-joint-material" && !belongsToAssembly) return [];
+    if (!showsFactoryTableRow(input.document, feature, input.subject)) return [];
+    const drawingObjectIds = featureDrawingObjectIds(feature, input.subject);
     return [{
       rowId: instance.productionInstanceId,
       sourceObjectIds: [
         ...new Set([
           ...feature.sourceObjectIds,
+          ...drawingObjectIds,
           instance.productionInstanceId
         ])
       ],
       cells: [
-        instance.productionNumber,
+        componentNumbers.get(instance.productionInstanceId)!,
         featureRole(feature),
         feature.materialCode,
         featureDimension(feature, instance),
@@ -578,6 +774,9 @@ function projectCalculatedComponentCallouts(input: Readonly<{
   assembly?: FabricationAssembly;
   viewId: string;
   result: FormalBomResult;
+  componentNumbers: ReadonlyMap<string, string>;
+  mode: FactoryComponentCalloutMode;
+  selectedObjectIds: readonly string[];
 }>): readonly DrawingAnnotation[] {
   const withoutSelectionCallouts = input.subject.annotations.filter((annotation) =>
     annotation.kind !== "component-callout" ||
@@ -585,6 +784,12 @@ function projectCalculatedComponentCallouts(input: Readonly<{
   );
   const featureById = new Map(input.result.features.map((feature) => [feature.featureId, feature]));
   const duplicateIndexByFeature = new Map<string, number>();
+  const selectedObjectIds = input.selectedObjectIds.flatMap((selectedId) => {
+    const instance = input.assembly?.instances.find((candidate) =>
+      candidate.objectId === selectedId
+    );
+    return instance ? [selectedId, instance.windowId] : [selectedId];
+  });
   const assemblyGeometry = input.assembly
     ? resolveFabricationAssemblyGeometry(
         input.assembly,
@@ -595,6 +800,24 @@ function projectCalculatedComponentCallouts(input: Readonly<{
     (instance): DrawingReferenceAnnotation[] => {
       const feature = featureById.get(instance.sourceFeatureId);
       if (!feature) return [];
+      const drawingObjectIds = featureDrawingObjectIds(feature, input.subject);
+      const wholeSubjectSelected = selectedObjectIds.includes(input.subject.objectId);
+      const includedByMode = input.mode === "all" ||
+        (input.mode === "profiles" && (
+          feature.kind === "profile-cut" || feature.kind === "engineering-joint-material"
+        )) ||
+        (input.mode === "glass-hardware" && (
+          feature.kind === "glass-panel" || feature.kind === "hardware-demand"
+        )) ||
+        (input.mode === "selected" && (wholeSubjectSelected ||
+          selectedObjectIds.some((selectedId) =>
+            drawingObjectIds.some((objectId) =>
+              selectedId === objectId ||
+              selectedId.startsWith(`${objectId}:`) ||
+              objectId.startsWith(`${selectedId}:`)
+            )
+          )));
+      if (!includedByMode) return [];
       const duplicateIndex = duplicateIndexByFeature.get(feature.featureId) ?? 0;
       duplicateIndexByFeature.set(feature.featureId, duplicateIndex + 1);
       let anchor: FactoryComponentCalloutAnchor | undefined;
@@ -639,11 +862,106 @@ function projectCalculatedComponentCallouts(input: Readonly<{
         kind: "component-callout",
         anchorModelMm: anchor.point,
         labelOffsetPaperMm: anchor.labelOffsetPaperMm,
-        text: instance.productionNumber
+        text: input.componentNumbers.get(instance.productionInstanceId)
       }];
     }
   );
   return [...withoutSelectionCallouts, ...visibleCallouts];
+}
+
+/** Maps a model-space anchor into the immutable paper-space view frame. */
+function factoryAnnotationAnchorPaperMm(
+  view: DrawingView,
+  annotation: DrawingReferenceAnnotation
+): DrawingPointMm {
+  return {
+    x: view.framePaperMm.x +
+      (annotation.anchorModelMm.x - view.modelBoundsMm.x) / view.scaleDenominator,
+    y: view.framePaperMm.y +
+      (annotation.anchorModelMm.y - view.modelBoundsMm.y) / view.scaleDenominator
+  };
+}
+
+/**
+ * Places calculated component numbers around the elevation without changing their anchors.
+ *
+ * Numbers are split by the product centre, ordered by physical Y, and stacked in
+ * deterministic 6.2mm paper lanes. Additional capacity uses a second outward
+ * column instead of placing one label over another. A user-locked offset wins
+ * after automatic layout, so re-calculation cannot silently move an approved mark.
+ */
+function layoutFactoryComponentCallouts(
+  document: DesignDocument,
+  view: DrawingView,
+  annotations: readonly DrawingAnnotation[]
+): readonly DrawingAnnotation[] {
+  const generated = annotations.filter((annotation): annotation is DrawingReferenceAnnotation =>
+    annotation.kind === "component-callout" &&
+    annotation.viewId === view.viewId &&
+    annotation.sourceObjectIds.some((sourceId) => sourceId.startsWith("PI-LOCAL-"))
+  );
+  if (!generated.length) return annotations;
+  const centreX = view.framePaperMm.x + view.framePaperMm.width / 2;
+  const labelHeightPaperMm = 5.4;
+  const verticalGapPaperMm = 0.8;
+  const stepPaperMm = labelHeightPaperMm + verticalGapPaperMm;
+  const topPaperMm = Math.max(12, view.framePaperMm.y);
+  const bottomPaperMm = view.framePaperMm.y + view.framePaperMm.height;
+  const capacity = Math.max(
+    1,
+    Math.floor((bottomPaperMm - topPaperMm) / stepPaperMm) + 1
+  );
+  const automaticOffsets = new Map<string, DrawingPointMm>();
+  const placeSide = (
+    side: "left" | "right",
+    candidates: readonly DrawingReferenceAnnotation[]
+  ): void => {
+    const ordered = [...candidates].sort((first, second) => {
+      const firstAnchor = factoryAnnotationAnchorPaperMm(view, first);
+      const secondAnchor = factoryAnnotationAnchorPaperMm(view, second);
+      return firstAnchor.y - secondAnchor.y || first.annotationId.localeCompare(second.annotationId);
+    });
+    ordered.forEach((annotation, index) => {
+      const laneIndex = Math.floor(index / capacity);
+      const rowIndex = index % capacity;
+      const laneSize = Math.min(capacity, ordered.length - laneIndex * capacity);
+      const stackHeight = (laneSize - 1) * stepPaperMm;
+      const stackTop = topPaperMm + Math.max(
+        0,
+        (bottomPaperMm - topPaperMm - stackHeight) / 2
+      );
+      const labelY = stackTop + rowIndex * stepPaperMm;
+      const anchor = factoryAnnotationAnchorPaperMm(view, annotation);
+      const laneGapPaperMm = 29;
+      const labelX = side === "left"
+        ? view.framePaperMm.x - 3 - laneIndex * laneGapPaperMm
+        : view.framePaperMm.x + view.framePaperMm.width + 3 + laneIndex * laneGapPaperMm;
+      automaticOffsets.set(annotation.annotationId, {
+        x: labelX - anchor.x,
+        y: labelY - anchor.y
+      });
+    });
+  };
+  placeSide("left", generated.filter((annotation) =>
+    factoryAnnotationAnchorPaperMm(view, annotation).x <= centreX
+  ));
+  placeSide("right", generated.filter((annotation) =>
+    factoryAnnotationAnchorPaperMm(view, annotation).x > centreX
+  ));
+  const lockedOffsets = new Map(
+    (document.factoryDrawingAnnotationLayouts ?? [])
+      .filter((layout) => layout.locked)
+      .map((layout) => [layout.annotationId, layout.offsetPaperMm] as const)
+  );
+  return annotations.map((annotation) => {
+    if (annotation.kind === "linear-dimension") return annotation;
+    const automatic = automaticOffsets.get(annotation.annotationId);
+    if (!automatic) return annotation;
+    return {
+      ...annotation,
+      labelOffsetPaperMm: lockedOffsets.get(annotation.annotationId) ?? automatic
+    };
+  });
 }
 
 /** Labels the three explicit straight-joint business semantics. */
@@ -653,98 +971,6 @@ function engineeringJointLabel(jointType: FabricationAssembly["joints"][number][
     : jointType === "reinforced_mullion"
       ? "加强拼樘"
       : "上下叠接";
-}
-
-/**
- * Places only user-facing door/window design components in the right-hand panel.
- *
- * The first slice intentionally limits a table on one page and emits an
- * overflow row. Multi-page schedules remain a later output adapter concern;
- * no source calculation data is lost or mutated here.
- *
- * @since 0.2.0
- * @modified 2026-09-21 - Added the first production-information panel.
- */
-function createFactoryTables(input: Readonly<{
-  subject: FactoryElevationSubject;
-  windows: readonly WindowUnit[];
-  result?: FormalBomResult;
-  panelXPaperMm: number;
-  panelWidthPaperMm: number;
-  panelTopPaperMm: number;
-  /** Last usable paper Y before the title block starts. */
-  panelBottomPaperMm: number;
-}>): readonly DrawingTable[] {
-  const componentRows = input.result
-    ? createCalculatedComponentRows({
-        subject: input.subject,
-        windows: input.windows,
-        result: input.result
-      })
-    : createDesignSelectionRows(input.windows);
-  const definitions: ReadonlyArray<Readonly<{
-    tableId: string;
-    kind: DrawingTable["kind"];
-    title: string;
-    rows: readonly DrawingTableRow[];
-    columns: readonly DrawingTableColumn[];
-    summaryRowId: string;
-  }>> = [{
-    tableId: `${input.subject.objectId}:design-selection`,
-    kind: "design-selection",
-    title: "门窗设计组成件",
-    rows: componentRows,
-    summaryRowId: `${input.subject.objectId}:selection:page-overflow`,
-    columns: tableColumns(input.panelWidthPaperMm, [
-      { key: "number", label: "编号", ratio: 19 },
-      { key: "role", label: "构件", ratio: 14 },
-      { key: "code", label: "型号/物料编码", ratio: 18 },
-      { key: "dimension", label: "下料(mm)·端角·数量", ratio: 26 },
-      { key: "remark", label: "备注", ratio: 23 }
-    ])
-  }];
-  let nextY = input.panelTopPaperMm;
-  return definitions.map((definition, definitionIndex) => {
-    // Reserve one readable body row for every following table, then give the
-    // current table all remaining rows. Overflow is explicitly printed rather
-    // than silently reducing typography to fit the page.
-    const followingTableCount = definitions.length - definitionIndex - 1;
-    const minimumFollowingHeight = followingTableCount * (
-      FACTORY_TABLE_LAYOUT.titleHeightPaperMm +
-      FACTORY_TABLE_LAYOUT.headerHeightPaperMm +
-      FACTORY_TABLE_LAYOUT.rowHeightPaperMm + 2
-    );
-    const availableHeight = input.panelBottomPaperMm - nextY - minimumFollowingHeight;
-    const maximumRows = Math.max(1, Math.floor((availableHeight -
-      FACTORY_TABLE_LAYOUT.titleHeightPaperMm -
-      FACTORY_TABLE_LAYOUT.headerHeightPaperMm) /
-      FACTORY_TABLE_LAYOUT.rowHeightPaperMm));
-    const rows = limitTableRows(
-      definition.rows,
-      maximumRows,
-      definition.columns.length,
-      definition.summaryRowId
-    );
-    const height = FACTORY_TABLE_LAYOUT.titleHeightPaperMm +
-      FACTORY_TABLE_LAYOUT.headerHeightPaperMm +
-      rows.length * FACTORY_TABLE_LAYOUT.rowHeightPaperMm;
-    const table: DrawingTable = {
-      tableId: definition.tableId,
-      kind: definition.kind,
-      title: definition.title,
-      framePaperMm: {
-        x: input.panelXPaperMm,
-        y: nextY,
-        width: input.panelWidthPaperMm,
-        height
-      },
-      layout: FACTORY_TABLE_LAYOUT,
-      columns: definition.columns,
-      rows
-    };
-    nextY += height + 2;
-    return table;
-  });
 }
 
 /**
@@ -1963,14 +2189,16 @@ export function projectFactoryElevationSheet(
   const planSubject = projectFactoryPlanSubject(assembly, subjectWindows, planViewId);
   const horizontalMarginMm = orientation === "landscape" ? 45 : 35;
   const topReservedMm = 45;
-  const tablePanelWidthPaperMm = page.width >= 297 ? 116 : 84;
-  const tablePanelXPaperMm = page.width - 12 - tablePanelWidthPaperMm;
-  // Reserve the farthest right-side dimension lane before the schedule panel.
+  // Reserve the farthest right-side dimension lane inside the drawing page.
+  // Component schedules now live exclusively on following pages, so the
+  // elevation receives the complete printable width rather than sharing it
+  // with a right-hand table.
   // The 34mm clearance corresponds to detail/segment/overall paper-space lanes
   // and remains independent of subject scale or browser zoom.
   const rightDimensionReservePaperMm = 34;
-  const availableWidthPaperMm = tablePanelXPaperMm - horizontalMarginMm -
+  const drawingRegionRightPaperMm = page.width - horizontalMarginMm -
     rightDimensionReservePaperMm;
+  const availableWidthPaperMm = drawingRegionRightPaperMm - horizontalMarginMm;
   // The elevation occupies the upper drawing band. At A3 this 92mm cap selects
   // 1:20 for a 1500mm-high product, leaving a readable lower plan band instead
   // of shrinking the plan to a token icon.
@@ -1986,7 +2214,6 @@ export function projectFactoryElevationSheet(
   );
   const viewWidthPaperMm = subject.bounds.widthMm / scaleDenominator;
   const viewHeightPaperMm = subject.bounds.heightMm / scaleDenominator;
-  const drawingRegionRightPaperMm = tablePanelXPaperMm - rightDimensionReservePaperMm;
   const view: DrawingView = {
     viewId,
     projection: "factory-sheet",
@@ -2066,18 +2293,36 @@ export function projectFactoryElevationSheet(
     annotation.annotationId.endsWith(":plan-title")
       ? { ...annotation, text: `${annotation.text} · 1:${planScaleDenominator}` }
       : annotation
-  );
+  ).filter((annotation) => showsFactoryAnnotation(document, annotation));
   const currentProductionResult = options.productionSnapshot?.sourceRevision === document.revision
     ? options.productionSnapshot.result
     : undefined;
-  const elevationAnnotations = currentProductionResult
+  const componentNumbers = currentProductionResult
+    ? createFactoryComponentNumbers({
+        document,
+        subject,
+        windows: subjectWindows,
+        result: currentProductionResult
+      })
+    : undefined;
+  const rawElevationAnnotations = (currentProductionResult
     ? projectCalculatedComponentCallouts({
         subject,
         ...(assembly ? { assembly } : {}),
         viewId,
-        result: currentProductionResult
+        result: currentProductionResult,
+        componentNumbers: componentNumbers!,
+        mode: options.componentCalloutMode ?? "all",
+        selectedObjectIds: options.selectedObjectIds ?? []
       })
-    : subject.annotations;
+    : subject.annotations).filter((annotation) =>
+      showsFactoryAnnotation(document, annotation)
+    );
+  const elevationAnnotations = layoutFactoryComponentCallouts(
+    document,
+    view,
+    rawElevationAnnotations
+  );
   const jointDetails = assembly && jointDetailsFitFirstPage
     ? projectFactoryJointDetails({
         assembly,
@@ -2090,15 +2335,6 @@ export function projectFactoryElevationSheet(
         ...(currentProductionResult ? { result: currentProductionResult } : {})
       })
     : { views: [], annotations: [], elevationAnnotations: [] };
-  const tables = createFactoryTables({
-    subject,
-    windows: subjectWindows,
-    ...(currentProductionResult ? { result: currentProductionResult } : {}),
-    panelXPaperMm: tablePanelXPaperMm,
-    panelWidthPaperMm: tablePanelWidthPaperMm,
-    panelTopPaperMm: 16,
-    panelBottomPaperMm: titleBlockTopPaperMm - 4
-  });
   return createDrawingSheet({
     sheetId: options.sheetId ?? `${subjectId}:factory-sheet:r${document.revision}`,
     drawingNumber: options.drawingNumber?.trim() || `DM-${subject.mark}-GA`,
@@ -2112,22 +2348,167 @@ export function projectFactoryElevationSheet(
     views: [view, planView, ...jointDetails.views],
     annotations: [
       ...elevationAnnotations,
-      ...jointDetails.elevationAnnotations,
+      ...jointDetails.elevationAnnotations.filter((annotation) =>
+        showsFactoryAnnotation(document, annotation)
+      ),
       ...planAnnotations,
-      ...jointDetails.annotations
+      ...jointDetails.annotations.filter((annotation) =>
+        showsFactoryAnnotation(document, annotation)
+      )
     ],
-    tables
+    tables: []
   });
+}
+
+/** Returns whether one annotation is a calculated physical-piece number. */
+function isCalculatedFactoryComponentCallout(
+  annotation: DrawingAnnotation
+): annotation is DrawingReferenceAnnotation {
+  return annotation.kind === "component-callout" &&
+    annotation.sourceObjectIds.some((sourceId) => sourceId.startsWith("PI-LOCAL-"));
+}
+
+/**
+ * Detects labels that required a second outward lane on the total-assembly page.
+ *
+ * The first left/right lane is retained on page one. Automatically placed outer
+ * lanes are moved to enlarged component-number detail pages; user-locked marks
+ * remain exactly where the designer put them.
+ */
+function factoryComponentCalloutOverflow(
+  document: DesignDocument,
+  elevationView: DrawingView,
+  annotations: readonly DrawingAnnotation[]
+): readonly DrawingReferenceAnnotation[] {
+  const lockedIds = new Set(
+    (document.factoryDrawingAnnotationLayouts ?? [])
+      .filter((layout) => layout.locked)
+      .map((layout) => layout.annotationId)
+  );
+  const leftFirstLaneX = elevationView.framePaperMm.x - 3;
+  const rightFirstLaneX = elevationView.framePaperMm.x + elevationView.framePaperMm.width + 3;
+  return annotations.filter((annotation): annotation is DrawingReferenceAnnotation => {
+    if (!isCalculatedFactoryComponentCallout(annotation) ||
+      annotation.viewId !== elevationView.viewId ||
+      lockedIds.has(annotation.annotationId)) return false;
+    const offset = annotation.labelOffsetPaperMm;
+    if (!offset) return false;
+    const anchor = factoryAnnotationAnchorPaperMm(elevationView, annotation);
+    const labelX = anchor.x + offset.x;
+    return labelX < leftFirstLaneX - 0.5 || labelX > rightFirstLaneX + 0.5;
+  });
+}
+
+interface FactoryComponentDetailPage {
+  readonly pageKey: string;
+  readonly title: string;
+  readonly view: DrawingView;
+  readonly annotations: readonly DrawingAnnotation[];
+}
+
+/**
+ * Builds enlarged, source-scoped pages for labels that cannot remain legible on page one.
+ *
+ * Overflow is grouped by owning window, so a connected product does not repeat
+ * unrelated geometry. Each page keeps the same physical-piece IDs and visible
+ * short numbers as the total assembly and schedule pages.
+ */
+function projectFactoryComponentDetailPages(input: Readonly<{
+  document: DesignDocument;
+  subject: FactoryElevationSubject;
+  page: Readonly<{ width: number; height: number }>;
+  overflow: readonly DrawingReferenceAnnotation[];
+}>): readonly FactoryComponentDetailPage[] {
+  if (!input.overflow.length) return [];
+  const groups = new Map<string, DrawingReferenceAnnotation[]>();
+  input.overflow.forEach((annotation) => {
+    const owner = input.subject.windowPlacements.find((placement) =>
+      annotation.sourceObjectIds.includes(placement.window.objectId)
+    );
+    const key = owner?.window.objectId ?? input.subject.objectId;
+    groups.set(key, [...(groups.get(key) ?? []), annotation]);
+  });
+  const maximumCalloutsPerPage = 40;
+  const pages: FactoryComponentDetailPage[] = [];
+  [...groups.entries()].forEach(([ownerId, group]) => {
+    const placement = input.subject.windowPlacements.find((candidate) =>
+      candidate.window.objectId === ownerId
+    );
+    const bounds: ResolvedRectangleMm = placement
+      ? {
+          xMm: placement.offsetX,
+          yMm: placement.offsetY,
+          widthMm: placement.window.widthMm,
+          heightMm: placement.window.heightMm
+        }
+      : input.subject.bounds;
+    const sourceObjectIds = placement
+      ? [placement.window.objectId, placement.ownerId]
+      : input.subject.sourceObjectIds;
+    const primitives = placement
+      ? input.subject.primitives.filter((primitive) =>
+          primitive.sourceObjectIds.includes(placement.window.objectId) ||
+          primitive.sourceObjectIds.includes(placement.ownerId)
+        )
+      : input.subject.primitives;
+    for (let start = 0; start < group.length; start += maximumCalloutsPerPage) {
+      const chunk = group.slice(start, start + maximumCalloutsPerPage);
+      const part = Math.floor(start / maximumCalloutsPerPage) + 1;
+      const detailViewId = `${input.subject.objectId}:factory-component-detail:${ownerId}:${part}`;
+      const availableWidthPaperMm = input.page.width - 120;
+      const availableHeightPaperMm = input.page.height - 82;
+      const scaleDenominator = selectScaleDenominator(
+        bounds,
+        availableWidthPaperMm,
+        availableHeightPaperMm
+      );
+      const viewWidthPaperMm = bounds.widthMm / scaleDenominator;
+      const viewHeightPaperMm = bounds.heightMm / scaleDenominator;
+      const detailView: DrawingView = {
+        viewId: detailViewId,
+        projection: "factory-sheet",
+        viewKind: "detail",
+        sourceObjectIds,
+        scaleDenominator,
+        modelBoundsMm: {
+          x: bounds.xMm,
+          y: bounds.yMm,
+          width: bounds.widthMm,
+          height: bounds.heightMm
+        },
+        framePaperMm: {
+          x: (input.page.width - viewWidthPaperMm) / 2,
+          y: 28 + Math.max(0, (availableHeightPaperMm - viewHeightPaperMm) / 2),
+          width: viewWidthPaperMm,
+          height: viewHeightPaperMm
+        },
+        primitives
+      };
+      const remapped = chunk.map((annotation) => ({
+        ...annotation,
+        viewId: detailViewId
+      }));
+      const ownerMark = placement?.window.mark ?? input.subject.mark;
+      pages.push({
+        pageKey: `${ownerId}:${part}`,
+        title: `${ownerMark} 构件编号详图${group.length > maximumCalloutsPerPage ? ` ${part}` : ""}`,
+        view: detailView,
+        annotations: layoutFactoryComponentCallouts(input.document, detailView, remapped)
+      });
+    }
+  });
+  return pages;
 }
 
 /**
  * Projects one complete, printable factory drawing issue including schedule continuations.
  *
- * Page one retains the total assembly, plan and connection details. When the
- * component schedule exceeds its readable A-series panel, remaining physical
- * pieces are placed on full-width continuation pages with the same drawing
- * number/version and explicit page numbering. No row is replaced by an
- * "additional rows" placeholder in the returned issue.
+ * Page one contains only the total assembly, plan and connection details.
+ * Automatically placed numbers that would require an outer callout lane move to
+ * enlarged, source-scoped detail pages; user-locked labels remain where the user
+ * put them. Full-width component schedules follow those detail pages with the
+ * same drawing number/version and explicit page numbering. No row is squeezed
+ * beside the drawing or replaced by an "additional rows" placeholder.
  *
  * @since 0.10.99
  */
@@ -2159,43 +2540,67 @@ export function projectFactoryDrawingSheets(
     ? options.productionSnapshot.result
     : undefined;
   const allRows = currentResult
-    ? createCalculatedComponentRows({ subject, windows: subjectWindows, result: currentResult })
-    : createDesignSelectionRows(subjectWindows);
-  const firstTable = firstProjection.tables?.[0];
-  if (!firstTable) {
-    const { schemaVersion: _schemaVersion, ...firstInput } = firstProjection;
-    return [createDrawingSheet({ ...firstInput, pageNumber: 1, pageCount: 1 })];
-  }
-  const firstPageCapacity = Math.max(1, firstTable.rows.length);
-  const firstPageRows = allRows.slice(0, firstPageCapacity);
-  const remainingRows = allRows.slice(firstPageCapacity);
+    ? createCalculatedComponentRows({
+        document,
+        subject,
+        windows: subjectWindows,
+        result: currentResult
+      })
+    : createDesignSelectionRows(subjectWindows.filter((candidate) =>
+        factoryElementOptions(document, candidate.objectId)?.showInComponentTable !== false
+      ));
   const page = resolveDrawingPaperSizeMm(firstProjection.paperFormat, firstProjection.orientation);
+  const firstElevationView = firstProjection.views.find((view) => view.viewKind === "elevation");
+  const overflowCallouts = firstElevationView
+    ? factoryComponentCalloutOverflow(document, firstElevationView, firstProjection.annotations)
+    : [];
+  const overflowIds = new Set(overflowCallouts.map((annotation) => annotation.annotationId));
+  const detailPages = projectFactoryComponentDetailPages({
+    document,
+    subject,
+    page,
+    overflow: overflowCallouts
+  });
   const continuationTopPaperMm = 16;
   const continuationBottomPaperMm = page.height - 39;
   const continuationCapacity = Math.max(1, Math.floor((
     continuationBottomPaperMm - continuationTopPaperMm -
     FACTORY_TABLE_LAYOUT.titleHeightPaperMm - FACTORY_TABLE_LAYOUT.headerHeightPaperMm
   ) / FACTORY_TABLE_LAYOUT.rowHeightPaperMm));
-  const continuationChunks: DrawingTableRow[][] = [];
-  for (let index = 0; index < remainingRows.length; index += continuationCapacity) {
-    continuationChunks.push([...remainingRows.slice(index, index + continuationCapacity)]);
+  const scheduleChunks: DrawingTableRow[][] = [];
+  for (let index = 0; index < allRows.length; index += continuationCapacity) {
+    scheduleChunks.push([...allRows.slice(index, index + continuationCapacity)]);
   }
-  const pageCount = 1 + continuationChunks.length;
-  const firstTableHeight = FACTORY_TABLE_LAYOUT.titleHeightPaperMm +
-    FACTORY_TABLE_LAYOUT.headerHeightPaperMm +
-    firstPageRows.length * FACTORY_TABLE_LAYOUT.rowHeightPaperMm;
-  const firstTables: readonly DrawingTable[] = [{
-    ...firstTable,
-    framePaperMm: { ...firstTable.framePaperMm, height: firstTableHeight },
-    rows: firstPageRows
-  }];
+  const pageCount = 1 + detailPages.length + scheduleChunks.length;
   const { schemaVersion: _firstSchemaVersion, ...firstInput } = firstProjection;
   const sheets: DrawingSheet[] = [createDrawingSheet({
     ...firstInput,
     pageNumber: 1,
     pageCount,
-    tables: firstTables
+    annotations: firstProjection.annotations.filter((annotation) =>
+      !overflowIds.has(annotation.annotationId)
+    ),
+    tables: []
   })];
+  detailPages.forEach((detail, index) => {
+    const pageNumber = index + 2;
+    sheets.push(createDrawingSheet({
+      sheetId: `${firstProjection.sheetId}:component-detail:${detail.pageKey}`,
+      drawingNumber: firstProjection.drawingNumber,
+      drawingVersion: firstProjection.drawingVersion,
+      sourceDocumentId: firstProjection.sourceDocumentId,
+      sourceRevision: firstProjection.sourceRevision,
+      profile: firstProjection.profile,
+      paperFormat: firstProjection.paperFormat,
+      orientation: firstProjection.orientation,
+      title: detail.title,
+      pageNumber,
+      pageCount,
+      views: [detail.view],
+      annotations: detail.annotations,
+      tables: []
+    }));
+  });
   const continuationTableWidthPaperMm = page.width - 28;
   const continuationColumns = tableColumns(continuationTableWidthPaperMm, [
     { key: "number", label: "编号", ratio: 19 },
@@ -2204,8 +2609,8 @@ export function projectFactoryDrawingSheets(
     { key: "dimension", label: "下料(mm)·端角·数量", ratio: 26 },
     { key: "remark", label: "备注", ratio: 23 }
   ]);
-  continuationChunks.forEach((rows, index) => {
-    const pageNumber = index + 2;
+  scheduleChunks.forEach((rows, index) => {
+    const pageNumber = index + detailPages.length + 2;
     const tableHeight = FACTORY_TABLE_LAYOUT.titleHeightPaperMm +
       FACTORY_TABLE_LAYOUT.headerHeightPaperMm + rows.length * FACTORY_TABLE_LAYOUT.rowHeightPaperMm;
     sheets.push(createDrawingSheet({
@@ -2217,15 +2622,17 @@ export function projectFactoryDrawingSheets(
       profile: firstProjection.profile,
       paperFormat: firstProjection.paperFormat,
       orientation: firstProjection.orientation,
-      title: `${subject.mark} 门窗设计组成件续表`,
+      title: `${subject.mark} 门窗设计组成件表`,
       pageNumber,
       pageCount,
       views: [],
       annotations: [],
       tables: [{
-        tableId: `${subject.objectId}:design-selection:continuation:${pageNumber}`,
+        tableId: `${subject.objectId}:design-selection:schedule:${pageNumber}`,
         kind: "design-selection",
-        title: `门窗设计组成件（续表 ${pageNumber - 1}/${pageCount - 1}）`,
+        title: scheduleChunks.length === 1
+          ? "门窗设计组成件"
+          : `门窗设计组成件（${index + 1}/${scheduleChunks.length}）`,
         framePaperMm: {
           x: 14,
           y: continuationTopPaperMm,

@@ -4,6 +4,7 @@ import type {
   DesignObjectId,
   EngineeringJointType,
   OpeningHardwareRole,
+  SlidingOpeningAssembly,
   TopHungOpeningAssembly,
   TiltTurnOpeningAssembly,
   WindowInstallationSide,
@@ -75,6 +76,103 @@ export interface HardwareSetSpec {
   readonly mountingRule?: HardwareMountingRuleSpec;
 }
 
+/** Geometric input consumed by a bounded sliding cut/glass dimension formula. */
+export type SlidingDimensionSource =
+  | "window-width"
+  | "window-height"
+  | "cell-width"
+  | "cell-height"
+  | "panel-width"
+  | "panel-height"
+  | "designed-overlap";
+
+/**
+ * Auditable linear formula: `sourceValue * scale + offsetMm`.
+ *
+ * Keeping the operation bounded avoids catalog-defined source execution while
+ * still representing common supplier deductions and explicit split ratios.
+ */
+export interface SlidingDimensionFormula {
+  readonly source: SlidingDimensionSource;
+  readonly scale: number;
+  readonly offsetMm: number;
+}
+
+/** Supplier-defined paired cut treatment for one profile orientation. */
+export interface SlidingProfileOrientationRule {
+  readonly length: SlidingDimensionFormula;
+  readonly quantity: number;
+  readonly cutLeftDeg: number;
+  readonly cutRightDeg: number;
+}
+
+/** Versioned business item consumed by a sliding manufacturing rule. */
+export interface SlidingMappedMaterial {
+  readonly materialCode: string;
+  readonly name: string;
+  readonly specification: string;
+  readonly material: string;
+  readonly color: string;
+}
+
+/**
+ * Cut specification for one frame, sash, or rail profile group.
+ *
+ * Horizontal and vertical counts are explicit instead of inferred from an
+ * assumed construction; a factory may describe a different joint or rail set.
+ */
+export interface SlidingProfileManufacturingRule {
+  readonly material: SlidingMappedMaterial;
+  readonly horizontal: SlidingProfileOrientationRule;
+  readonly vertical: SlidingProfileOrientationRule;
+}
+
+/** Catalog provenance and release eligibility for one sliding rule snapshot. */
+export interface SlidingRuleProvenance {
+  readonly status: "reference-only" | "factory-approved";
+  readonly sourceType: "supplier-document" | "factory-engineering" | "public-reference-simulation";
+  readonly sourceId: string;
+  readonly sourceRevision: string;
+}
+
+/**
+ * Explicit sliding accessory demand derived from an assembly quantity basis.
+ *
+ * This is a business material mapping, not a mounting/slot template. Machining
+ * contracts remain separate and are required before production confirmation.
+ */
+export interface SlidingHardwareDemandRule {
+  readonly material: SlidingMappedMaterial;
+  readonly quantityBasis: "assembly" | "all-panels" | "movable-panels" | "tracks";
+  readonly quantityPerBasis: number;
+  readonly unit: "pcs" | "set";
+}
+
+/**
+ * Supplier/factory mapping required before any sliding cut list is calculated.
+ *
+ * Formulas and applicability are frozen with the catalog version. Reference
+ * simulations may support preview calculations only; only factory-approved
+ * provenance can ever clear the sliding production safety gate.
+ */
+export interface SlidingManufacturingRuleSpec {
+  readonly ruleId: string;
+  readonly ruleVersion: string;
+  readonly profileSystemId: string;
+  readonly hardwareSetId: string;
+  readonly applicablePanelCounts: readonly (2 | 3 | 4 | 5 | 6)[];
+  readonly applicableTrackCounts: readonly (2 | 3 | 4)[];
+  readonly provenance: SlidingRuleProvenance;
+  readonly frame: SlidingProfileManufacturingRule;
+  readonly sash: SlidingProfileManufacturingRule;
+  readonly rail: SlidingProfileManufacturingRule;
+  readonly glass: {
+    readonly width: SlidingDimensionFormula;
+    readonly height: SlidingDimensionFormula;
+  };
+  readonly hardware: readonly SlidingHardwareDemandRule[];
+}
+
 /**
  * Versioned placement and machining reference for one hardware set.
  *
@@ -108,6 +206,11 @@ export interface ManufacturingCatalog {
   readonly profileSystems: readonly ProfileSystemSpec[];
   readonly glassTypes: readonly GlassSpec[];
   readonly hardwareSets: readonly HardwareSetSpec[];
+  /**
+   * Optional, versioned sliding system mappings. Missing entries are a
+   * calculation blocker; no hinged-window defaults are inherited.
+   */
+  readonly slidingRules?: readonly SlidingManufacturingRuleSpec[];
   /**
    * Optional factory-owned connection catalog. `undefined` selects the bundled
    * reviewed presets; an explicit array replaces them and may intentionally
@@ -838,6 +941,13 @@ export interface EngineeringWindowBomItem {
           readonly openingAssembly: EngineeringTopHungOpeningAssembly;
           readonly hardwareSetId: string;
         }
+      | {
+          readonly cellId: string;
+          readonly type: "sliding";
+          readonly opening: "slide_left" | "slide_right";
+          readonly openingAssembly: SlidingOpeningAssembly;
+          readonly hardwareSetId: string;
+        }
     )[];
   };
   readonly topology: {
@@ -982,6 +1092,33 @@ export interface EngineeringTopHungCellBomItem {
   readonly heightMm: number;
 }
 
+/**
+ * Engineering-level sliding cell envelope and authored rail/panel assembly.
+ *
+ * Width and height are the shared geometric clear-cell envelope, not sash cut
+ * sizes. Supplier section deductions and sliding hardware remain a separate
+ * manufacturing mapping and must not be inferred from this EBOM item.
+ *
+ * @since 0.11.11
+ */
+export interface EngineeringSlidingCellBomItem {
+  readonly sourceWindowId: string;
+  readonly sourceComponentId: string;
+  readonly type: "sliding";
+  readonly opening: "slide_left" | "slide_right";
+  readonly openingAssembly: SlidingOpeningAssembly;
+  readonly hardwareSetId: string;
+  readonly infillType: "glass";
+  readonly accessories: {
+    readonly grille: false;
+    readonly screenMode: "none";
+    readonly securityBars: false;
+    readonly frosted: false;
+  };
+  readonly widthMm: number;
+  readonly heightMm: number;
+}
+
 /** Engineering-level package object retained before its material layers expand. */
 export interface EngineeringInstallationSurroundBomItem {
   readonly sourceWindowId: string;
@@ -1043,6 +1180,7 @@ export type EngineeringBomItem =
   | EngineeringCellBomItem
   | EngineeringTiltTurnCellBomItem
   | EngineeringTopHungCellBomItem
+  | EngineeringSlidingCellBomItem
   | EngineeringInstallationSurroundBomItem
   | EngineeringJointBomItem;
 
@@ -1108,7 +1246,8 @@ export interface ManufacturingDiagnostic {
     | "OPENING_INSTALLATION_CLEARANCE_CONFLICT"
     | "PRODUCT_TEMPLATE_NOT_PRODUCTION_APPROVED"
     | "FABRICATION_ASSEMBLY_CATALOG_RULE_MISSING"
-    | "FABRICATION_ASSEMBLY_PROCESS_TEMPLATE_REQUIRED";
+    | "FABRICATION_ASSEMBLY_PROCESS_TEMPLATE_REQUIRED"
+    | "SLIDING_MANUFACTURING_MAPPING_REQUIRED";
   readonly blocksConfirmation: boolean;
   readonly sourceWindowId: string;
   readonly sourceObjectIds: readonly DesignObjectId[];

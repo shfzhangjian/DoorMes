@@ -21,6 +21,54 @@ import {
 import { renderDesignSvg } from "./index";
 
 describe("renderDesignSvg", () => {
+  it("projects ordinary sliding panels and rails with the same millimetre translation in facade and plan", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-SVG-SLIDING"));
+    session.execute(createRectangularWindowCommand({
+      commandId: "CREATE-SVG-SLIDING",
+      windowId: "WIN-SVG-SLIDING",
+      mark: "S1",
+      widthMm: 1800,
+      heightMm: 1500,
+      cellId: "CELL-SVG-SLIDING"
+    }));
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: "SET-SVG-SLIDING",
+      windowId: "WIN-SVG-SLIDING",
+      cellId: "CELL-SVG-SLIDING",
+      cellType: "sliding",
+      opening: "slide_left"
+    }));
+
+    const closed = renderDesignSvg(session.document, {
+      showPlanView: true,
+      showOpeningState: false
+    });
+    const open = renderDesignSvg(session.document, {
+      showPlanView: true,
+      showOpeningState: true,
+      openingProgressPercentByPanelKey: { "CELL-SVG-SLIDING::P2": 100 }
+    });
+
+    expect(closed.match(/class="design-window__sliding-panel"/g)).toHaveLength(2);
+    expect(closed.match(/class="design-plan-view__sliding-track"/g)).toHaveLength(2);
+    expect(closed.match(/class="design-plan-view__sliding-panel"/g)).toHaveLength(2);
+    expect(closed).toContain('data-object-id="CELL-SVG-SLIDING::P1"');
+    expect(closed).toContain('data-object-id="CELL-SVG-SLIDING::P2"');
+    expect(closed).toContain('data-maximum-travel-mm="812.5"');
+    expect(closed).not.toContain("design-window__opening--tilt-turn");
+    expect(open.match(/data-preview-translation-x-mm="-812.5"/g)).toHaveLength(2);
+    expect(open).toContain('data-travel-direction="left"');
+    expect(open).toContain('class="design-window__sliding-direction"');
+
+    const selectedPanel = renderDesignSvg(session.document, {
+      showDimensions: true,
+      selectedObjectId: "CELL-SVG-SLIDING::P2"
+    });
+    expect(selectedPanel).toContain('data-profile-role="sliding-sash"');
+    expect(selectedPanel).toContain("推拉扇框型材");
+    expect(selectedPanel).toContain('data-selected="true"');
+  });
+
   it("renders selectable user text labels in their requested facade and plan views", () => {
     const session = new DesignSession(createEmptyDesign("DESIGN-SVG-TEXT-LABEL"));
     session.execute(createRectangularWindowCommand({

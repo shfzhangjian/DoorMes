@@ -12,6 +12,8 @@ import type {
   DesignDocument,
   DesignObjectId,
   DrawingTextLabel,
+  FactoryDrawingAnnotationLayoutOverride,
+  FactoryDrawingElementOptions,
   EngineeringJoint,
   EngineeringJointCatalogSelectionSnapshot,
   EngineeringJointType,
@@ -30,6 +32,8 @@ import type {
   SurroundCatalogSelectionSnapshot,
   UpdateFabricationAssemblyInstallationCommand,
   UpdateDrawingTextLabelCommand,
+  UpdateFactoryDrawingAnnotationLayoutCommand,
+  UpdateFactoryDrawingElementOptionsCommand,
   UpdateWindowInstallationCommand,
   UpdateEngineeringJointCommand,
   UpdateWindowGlassCatalogSelectionCommand,
@@ -1038,6 +1042,122 @@ export function listZcsungSimulationWindowOptions(): readonly ZcsungSimulationWi
   });
 }
 
+/** Stable ID for the executable, customer-neutral two-panel sliding starter. */
+export const NEUTRAL_ORDINARY_SLIDING_TEMPLATE_ID = "DOORMES-NEUTRAL-SLIDING-2P2T";
+
+/** Non-customer design starter exposed beside manual and public-reference templates. */
+export interface NeutralSlidingWindowOption {
+  readonly templateId: typeof NEUTRAL_ORDINARY_SLIDING_TEMPLATE_ID;
+  readonly label: string;
+  readonly defaultWidthMm: number;
+  readonly defaultHeightMm: number;
+}
+
+/** Lists executable neutral starters without presenting them as approved products. */
+export function listNeutralSlidingWindowOptions(): readonly NeutralSlidingWindowOption[] {
+  return [{
+    templateId: NEUTRAL_ORDINARY_SLIDING_TEMPLATE_ID,
+    label: "中性普通推拉窗 · 两扇两轨（设计验证）",
+    defaultWidthMm: 1800,
+    defaultHeightMm: 1500
+  }];
+}
+
+/**
+ * Builds the standard two-panel/two-track intent used by creation and editing.
+ *
+ * `slide_right` makes the left panel active and lets it stack toward the right;
+ * `slide_left` mirrors that allocation. The function records design intent only:
+ * supplier rail grooves, rollers and machining templates remain catalog work.
+ */
+export function createStandardSlidingConfiguration(
+  opening: "slide_left" | "slide_right",
+  overlapMm = 35,
+  openPercent = 80
+): NonNullable<SetWindowCellOpeningCommand["slidingConfiguration"]> {
+  return {
+    trackCount: 2,
+    overlapMm,
+    openPercent,
+    panels: opening === "slide_right"
+      ? [
+          { trackIndex: 0, movable: true, travelDirection: "right" },
+          { trackIndex: 1, movable: false }
+        ]
+      : [
+          { trackIndex: 1, movable: false },
+          { trackIndex: 0, movable: true, travelDirection: "left" }
+        ]
+  };
+}
+
+/** Atomic command plan for the executable customer-neutral sliding starter. */
+export interface NeutralSlidingWindowCreationPlan {
+  readonly templateId: typeof NEUTRAL_ORDINARY_SLIDING_TEMPLATE_ID;
+  readonly productName: string;
+  readonly createCommand: CreateRectangularWindowCommand;
+  readonly openingCommand: SetWindowCellOpeningCommand;
+  readonly commands: readonly [CreateRectangularWindowCommand, SetWindowCellOpeningCommand];
+}
+
+/**
+ * Plans a neutral ordinary-sliding window without claiming customer approval.
+ *
+ * The resulting window intentionally has no `productTemplateSelection`; it is
+ * a generic design starter backed by shared geometry, not a released customer
+ * product. Its reference profile and hardware codes remain editable business
+ * placeholders until an audited supplier catalog replaces them.
+ */
+export function planNeutralSlidingWindowCreation(input: {
+  readonly templateId: string;
+  readonly commandIdPrefix: string;
+  readonly windowId: string;
+  readonly instanceMark?: string;
+  readonly widthMm?: number;
+  readonly heightMm?: number;
+  readonly opening?: "slide_left" | "slide_right";
+  readonly overlapMm?: number;
+}): NeutralSlidingWindowCreationPlan {
+  if (input.templateId !== NEUTRAL_ORDINARY_SLIDING_TEMPLATE_ID) {
+    throw new Error(`Unknown neutral sliding template ${input.templateId}.`);
+  }
+  const option = listNeutralSlidingWindowOptions()[0]!;
+  const cellId = `${input.windowId}:CELL-1`;
+  const trailingSequence = input.windowId.match(/(\d+)$/)?.[1];
+  const opening = input.opening ?? "slide_right";
+  const createCommand = createRectangularWindowCommand({
+    commandId: `${input.commandIdPrefix}:CREATE`,
+    windowId: input.windowId,
+    mark: input.instanceMark?.trim() || `C${trailingSequence ?? "1"}`,
+    widthMm: input.widthMm ?? option.defaultWidthMm,
+    heightMm: input.heightMm ?? option.defaultHeightMm,
+    cellId,
+    profileSystemId: "AL70",
+    frameFaceMm: 70,
+    sashFaceMm: 58,
+    defaultHardwareSetId: "HW-SLIDE-STD"
+  });
+  const openingCommand = createSetWindowCellOpeningCommand({
+    commandId: `${input.commandIdPrefix}:OPENING`,
+    windowId: input.windowId,
+    cellId,
+    cellType: "sliding",
+    opening,
+    hardwareSetId: "HW-SLIDE-STD",
+    slidingConfiguration: createStandardSlidingConfiguration(
+      opening,
+      input.overlapMm ?? 35
+    )
+  });
+  return {
+    templateId: NEUTRAL_ORDINARY_SLIDING_TEMPLATE_ID,
+    productName: "中性普通推拉窗",
+    createCommand,
+    openingCommand,
+    commands: [createCommand, openingCommand]
+  };
+}
+
 /** Result of translating one target-product choice into shared formal commands. */
 export interface ZcsungSimulationWindowCreationPlan {
   readonly templateId: string;
@@ -1163,6 +1283,8 @@ function selectionBelongsToWindow(window: WindowUnit, objectId: DesignObjectId):
     ...geometry.frames.map((item) => item.objectId),
     ...geometry.cells.map((item) => item.objectId),
     ...geometry.openings.map((item) => `${item.objectId}::${item.panelId}`),
+    ...geometry.slidingTracks.map((item) => item.objectId),
+    ...geometry.slidingPanels.map((item) => `${item.sourceObjectId}::${item.panelId}`),
     ...geometry.members.map((item) => item.objectId),
     ...geometry.meetingMullions.map((item) => item.objectId),
     ...geometry.hardware.map((item) => item.hardwareId)
@@ -1669,6 +1791,48 @@ export function createUpdateWindowDesignComponentRemarksCommand(input: {
   };
 }
 
+/** Creates one undoable per-object factory-drawing output preference command. */
+export function createUpdateFactoryDrawingElementOptionsCommand(input: {
+  commandId: string;
+  objectId: string | DesignObjectId;
+  factoryDrawingNumber?: string;
+  showDimensions: boolean;
+  showInComponentTable: boolean;
+}): UpdateFactoryDrawingElementOptionsCommand {
+  const options: FactoryDrawingElementOptions = {
+    objectId: toDesignObjectId(input.objectId),
+    ...(input.factoryDrawingNumber !== undefined
+      ? { factoryDrawingNumber: input.factoryDrawingNumber }
+      : {}),
+    showDimensions: input.showDimensions,
+    showInComponentTable: input.showInComponentTable
+  };
+  return {
+    type: "factory-drawing.update-element-options",
+    commandId: input.commandId,
+    options
+  };
+}
+
+/** Creates one undoable manual paper-space placement for a generated annotation. */
+export function createUpdateFactoryDrawingAnnotationLayoutCommand(input: {
+  commandId: string;
+  annotationId: string;
+  offsetPaperMm: Readonly<{ x: number; y: number }>;
+  locked: boolean;
+}): UpdateFactoryDrawingAnnotationLayoutCommand {
+  const layout: FactoryDrawingAnnotationLayoutOverride = {
+    annotationId: input.annotationId,
+    offsetPaperMm: { ...input.offsetPaperMm },
+    locked: input.locked
+  };
+  return {
+    type: "factory-drawing.update-annotation-layout",
+    commandId: input.commandId,
+    layout
+  };
+}
+
 /** Creates one undoable user-authored 2D text label. */
 export function createDrawingTextLabelCommand(input: {
   commandId: string;
@@ -1712,17 +1876,18 @@ export function createDeleteDrawingTextLabelCommand(input: {
  * controls may differ, but the command contains only stable IDs and production
  * intent. The domain supplies complete panel/hinge metadata.
  *
- * @param input Target cell plus fixed or tilt-turn selection.
+ * @param input Target cell plus fixed, hinged or ordinary-sliding selection.
  * @returns A normalized command accepted by `DesignSession`.
- * @example Select `turn_tilt/right_in` to generate sash, glass and hardware BOM.
+ * @example Select `turn_tilt/right_in` or a validated two-track sliding layout.
  * @since 0.4.9
  * @modified 2026-09-17 - Added the first shared opening-cell command factory.
+ * @modified 2026-09-24 - Added ordinary-sliding panel and rail intent.
  */
 export function createSetWindowCellOpeningCommand(input: {
   commandId: string;
   windowId: string | DesignObjectId;
   cellId: string | DesignObjectId;
-  cellType: "fixed_glass" | "turn_tilt" | "top_hung";
+  cellType: "fixed_glass" | "turn_tilt" | "top_hung" | "sliding";
   opening:
     | "fixed"
     | "left_in"
@@ -1730,11 +1895,14 @@ export function createSetWindowCellOpeningCommand(input: {
     | "left_out"
     | "right_out"
     | "top_in"
-    | "top_out";
+    | "top_out"
+    | "slide_left"
+    | "slide_right";
   hardwareSetId?: string;
   panelCount?: 1 | 2;
   mullionMode?: "fixed_mullion" | "flying_mullion";
   maximumAngleDegreesByMode?: Readonly<{ primary: number; tilt?: number }>;
+  slidingConfiguration?: SetWindowCellOpeningCommand["slidingConfiguration"];
 }): SetWindowCellOpeningCommand {
   return {
     type: "window.cell-set-opening",
@@ -1746,7 +1914,8 @@ export function createSetWindowCellOpeningCommand(input: {
     hardwareSetId: input.hardwareSetId,
     panelCount: input.panelCount,
     mullionMode: input.mullionMode,
-    maximumAngleDegreesByMode: input.maximumAngleDegreesByMode
+    maximumAngleDegreesByMode: input.maximumAngleDegreesByMode,
+    slidingConfiguration: input.slidingConfiguration
   };
 }
 

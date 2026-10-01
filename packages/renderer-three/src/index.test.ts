@@ -165,6 +165,76 @@ async function sha256(bytes: ArrayBuffer): Promise<string> {
 }
 
 describe("ThreeDesignSceneBuilder", () => {
+  it("places ordinary sliding panels on separate rails and reuses their millimetre travel", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-3D-SLIDING"));
+    session.execute(createRectangularWindowCommand({
+      commandId: "CREATE-3D-SLIDING",
+      windowId: "WIN-3D-SLIDING",
+      mark: "S1",
+      widthMm: 1800,
+      heightMm: 1500,
+      cellId: "CELL-3D-SLIDING"
+    }));
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: "SET-3D-SLIDING",
+      windowId: "WIN-3D-SLIDING",
+      cellId: "CELL-3D-SLIDING",
+      cellType: "sliding",
+      opening: "slide_left"
+    }));
+
+    const windowGroup = new ThreeDesignSceneBuilder().build(session.document, {
+      openingProgressPercentByPanelKey: { "CELL-3D-SLIDING::P2": 100 }
+    }).children[0];
+    if (!windowGroup) throw new Error("Sliding scene did not create a window group.");
+    const panels: Array<(typeof windowGroup.children)[number]> = [];
+    const rails: Array<(typeof windowGroup.children)[number]> = [];
+    const hingedPanels: Array<(typeof windowGroup.children)[number]> = [];
+    windowGroup.traverse((child) => {
+      if (child.userData.objectType === "sliding-opening-panel" && child.userData.panelId) {
+        panels.push(child);
+      }
+      if (child.userData.objectType === "sliding-track-centreline") rails.push(child);
+      if (child.userData.objectType === "opening-panel" && child.userData.panelId) {
+        hingedPanels.push(child);
+      }
+    });
+    const p1 = panels.find((panel) => panel.userData.panelId === "P1");
+    const p2 = panels.find((panel) => panel.userData.panelId === "P2");
+
+    expect(rails).toHaveLength(2);
+    expect(panels).toHaveLength(2);
+    expect(hingedPanels).toEqual([]);
+    expect(p1?.position.x).toBeCloseTo(-0.40625, 6);
+    expect(p2?.position.x).toBeCloseTo(-0.40625, 6);
+    expect(p1?.position.z).toBeCloseTo(-0.0175, 6);
+    expect(p2?.position.z).toBeCloseTo(0.0175, 6);
+    expect(p2?.userData).toMatchObject({
+      previewProgressPercent: 100,
+      previewTranslationXMm: -812.5,
+      maximumTravelMm: 812.5,
+      travelDirection: "left",
+      visualOnlyTrackClearanceMm: 1
+    });
+
+    const selectedPanelWindow = new ThreeDesignSceneBuilder().build(session.document, {
+      showLinearDimensions: true,
+      linearDimensionObjectId: "CELL-3D-SLIDING::P2"
+    }).children[0];
+    const selectedPanelDimensions = selectedPanelWindow?.children.find(
+      (child) => child.userData.objectType === "linear-dimension-collection"
+    )?.children.map((child) => ({
+      kind: child.userData.dimensionKind,
+      label: child.userData.labelText,
+      millimetres: child.userData.dimensionMm
+    }));
+    expect(selectedPanelDimensions).toEqual([
+      { kind: "sliding-panel-width", label: "P2滑扇宽 847.5 mm", millimetres: 847.5 },
+      { kind: "sliding-panel-height", label: "P2滑扇高 1360 mm", millimetres: 1360 },
+      { kind: "sliding-travel", label: "最大行程 812.5 mm", millimetres: 812.5 }
+    ]);
+  });
+
   it("marks the 3D ground with the shared +Z outdoor and -Z indoor convention", () => {
     const guide = createThreeGroundOrientationGuide(1.25);
     const outsideArrow = guide.getObjectByName("ground-orientation-outside-arrow");

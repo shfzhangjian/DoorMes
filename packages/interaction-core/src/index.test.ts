@@ -89,6 +89,77 @@ describe("WindowVisualPreviewStore", () => {
 });
 
 describe("OpeningPreviewStore", () => {
+  it("exposes a movable sliding sash through translation progress, not hinge angles", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-SLIDING-PREVIEW"));
+    session.execute(createRectangularWindowCommand({
+      commandId: "CREATE-SLIDING-PREVIEW",
+      windowId: "WIN-SLIDING-PREVIEW",
+      mark: "S1",
+      widthMm: 1800,
+      heightMm: 1500,
+      cellId: "CELL-SLIDING-PREVIEW"
+    }));
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: "SET-SLIDING-PREVIEW",
+      windowId: "WIN-SLIDING-PREVIEW",
+      cellId: "CELL-SLIDING-PREVIEW",
+      cellType: "sliding",
+      opening: "slide_right"
+    }));
+
+    const definitions = collectOpeningPreviewPanelDefinitions(session.document);
+    expect(definitions).toEqual([
+      expect.objectContaining({
+        key: "CELL-SLIDING-PREVIEW::P1",
+        mechanism: "sliding",
+        panelId: "P1",
+        operationMode: "independent",
+        configuredOpenPercent: 80,
+        supportsTilt: false
+      })
+    ]);
+
+    const store = new OpeningPreviewStore(session.document);
+    expect(store.state.selectedPanelKeys).toEqual(["CELL-SLIDING-PREVIEW::P1"]);
+    store.setSelectedProgress(35);
+    expect(store.state.panelProgressPercent["CELL-SLIDING-PREVIEW::P1"]).toBe(35);
+    expect(() => store.setSelectedAngleDegrees(35)).toThrow(/travel percentage/);
+    expect(() => store.setSelectedMotionMode("tilt")).toThrow(/hinge motion modes/);
+    const controller = new OpeningPreviewController(store, 600);
+    controller.openSelected();
+    controller.advance(600);
+    expect(store.state.panelProgressPercent["CELL-SLIDING-PREVIEW::P1"]).toBe(100);
+  });
+
+  it("keeps hinged-angle and sliding-progress panel selections homogeneous", () => {
+    const session = createDoubleOpeningSession();
+    session.execute(createRectangularWindowCommand({
+      commandId: "CREATE-MIXED-SLIDING",
+      windowId: "WIN-MIXED-SLIDING",
+      mark: "S1",
+      widthMm: 1800,
+      heightMm: 1500,
+      cellId: "CELL-MIXED-SLIDING"
+    }));
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: "SET-MIXED-SLIDING",
+      windowId: "WIN-MIXED-SLIDING",
+      cellId: "CELL-MIXED-SLIDING",
+      cellType: "sliding",
+      opening: "slide_right"
+    }));
+
+    const store = new OpeningPreviewStore(session.document);
+    expect(store.state.selectedPanelKeys).toEqual([
+      "CELL-PREVIEW-STORE::P1",
+      "CELL-PREVIEW-STORE::P2"
+    ]);
+    store.toggleSelected("CELL-MIXED-SLIDING::P1");
+    expect(store.state.selectedPanelKeys).toEqual(["CELL-MIXED-SLIDING::P1"]);
+    store.toggleSelected("CELL-PREVIEW-STORE::P1");
+    expect(store.state.selectedPanelKeys).toEqual(["CELL-PREVIEW-STORE::P1"]);
+  });
+
   it("offers primary rotation but no tilt mode for an outward side-hung sash", () => {
     const session = new DesignSession(createEmptyDesign("DESIGN-OUTWARD-PREVIEW"));
     session.execute(createRectangularWindowCommand({
@@ -121,12 +192,14 @@ describe("OpeningPreviewStore", () => {
     expect(collectOpeningPreviewPanelDefinitions(session.document)).toEqual([
       expect.objectContaining({
         key: "CELL-PREVIEW-STORE::P1",
+        mechanism: "hinged",
         panelId: "P1",
         operationMode: "ordered",
         operationOrder: 1
       }),
       expect.objectContaining({
         key: "CELL-PREVIEW-STORE::P2",
+        mechanism: "hinged",
         panelId: "P2",
         operationMode: "ordered",
         operationOrder: 0

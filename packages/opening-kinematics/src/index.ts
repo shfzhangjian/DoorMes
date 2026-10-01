@@ -84,6 +84,9 @@ export type OpeningMotionMechanism = "tilt_turn" | "top_hung" | "bottom_hung";
 /** User-selectable motion mode for mechanisms with more than one opening path. */
 export type OpeningMotionMode = "primary" | "tilt";
 
+/** Horizontal travel direction of one ordinary sliding sash. */
+export type SlidingTravelDirection = "left" | "right";
+
 /** One renderer-neutral point on an opening-angle annotation arc. */
 export interface OpeningAngleArcPoint {
   readonly radialX: number;
@@ -342,6 +345,47 @@ export function createHingedOpeningMotion(input: Readonly<{
       startProgress: 0,
       endProgress: 100,
       deltaRadians
+    }]
+  };
+}
+
+/**
+ * Builds the renderer-neutral translation used by an ordinary sliding sash.
+ *
+ * The stored travel is a positive physical distance in millimetres; direction
+ * supplies its sign in the shared local X axis (left negative, right positive).
+ * Track assignment, overlap, interlock profiles and usable clear opening remain
+ * product geometry concerns and are deliberately not inferred here. Keeping the
+ * motion this small lets SVG, Three.js, collision checks and mobile playback
+ * consume exactly the same pose without treating a sliding sash as a zero-angle
+ * hinged leaf.
+ *
+ * @param input Stable motion identity, horizontal direction and full travel.
+ * @returns One validated translation step spanning the normalized preview path.
+ * @throws When the identity is blank or travel is not a positive finite value.
+ * @example A left-moving sash with 620mm travel ends at `x = -620`.
+ * @since 0.11.2
+ */
+export function createSlidingOpeningMotion(input: Readonly<{
+  motionId: string;
+  direction: SlidingTravelDirection;
+  travelMm: number;
+}>): OpeningMotionDefinition {
+  if (!input.motionId.trim()) {
+    throw new TypeError("Sliding opening motion ID must be non-empty.");
+  }
+  if (!Number.isFinite(input.travelMm) || input.travelMm <= 0) {
+    throw new RangeError("Sliding opening travel must be a positive finite millimetre value.");
+  }
+  const signedTravelMm = input.direction === "left" ? -input.travelMm : input.travelMm;
+  return {
+    motionId: input.motionId,
+    steps: [{
+      id: `${input.motionId}:slide`,
+      kind: "translation",
+      startProgress: 0,
+      endProgress: 100,
+      deltaMm: { x: signedTravelMm, y: 0, z: 0 }
     }]
   };
 }

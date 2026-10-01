@@ -25,20 +25,29 @@ import {
   createUpdateEngineeringJointCommand,
   createUpdateWindowGlassCatalogSelectionCommand,
   createUpdateWindowDesignComponentRemarksCommand,
+  createUpdateFactoryDrawingElementOptionsCommand,
+  createUpdateFactoryDrawingAnnotationLayoutCommand,
   createUpdateDrawingTextLabelCommand,
   createUpdateWindowMarkCommand,
   createUpdateWindowSurroundCatalogSelectionCommand,
   createUpdateWindowVisualConfigurationCommand,
+  createStandardSlidingConfiguration,
   DesignCanvasViewStore,
   DesignSelectionStore,
   DesignSession,
+  listNeutralSlidingWindowOptions,
   listZcsungSimulationWindowOptions,
+  NEUTRAL_ORDINARY_SLIDING_TEMPLATE_ID,
   planConnectedWindowCreation,
+  planNeutralSlidingWindowCreation,
   planZcsungSimulationWindowCreation,
   requireEngineeringJointCatalogSelection,
   resolveSelectedOwningWindowId
 } from "./index";
-import { REFERENCE_WINDOW_INSTALLATION } from "@doormes/geometry-topology";
+import {
+  REFERENCE_WINDOW_INSTALLATION,
+  resolveWindowGeometry
+} from "@doormes/geometry-topology";
 import { resolveSurroundBusinessCatalogSelection } from "@doormes/appearance-model";
 
 describe("DesignSession", () => {
@@ -157,6 +166,70 @@ describe("DesignSession", () => {
     expect(session.document.windows).toHaveLength(0);
   });
 
+  it("creates a neutral two-panel sliding window as one undoable shared transaction", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-NEUTRAL-SLIDING"));
+    const options = listNeutralSlidingWindowOptions();
+    const plan = planNeutralSlidingWindowCreation({
+      templateId: NEUTRAL_ORDINARY_SLIDING_TEMPLATE_ID,
+      commandIdPrefix: "CMD-NEUTRAL-SLIDING-1",
+      windowId: "WIN-NEUTRAL-SLIDING-1",
+      instanceMark: "S1",
+      widthMm: 1900,
+      heightMm: 1600,
+      opening: "slide_left",
+      overlapMm: 42
+    });
+
+    expect(options).toEqual([expect.objectContaining({
+      templateId: NEUTRAL_ORDINARY_SLIDING_TEMPLATE_ID,
+      defaultWidthMm: 1800,
+      defaultHeightMm: 1500
+    })]);
+    expect(createStandardSlidingConfiguration("slide_right", 40, 75)).toEqual({
+      trackCount: 2,
+      overlapMm: 40,
+      openPercent: 75,
+      panels: [
+        { trackIndex: 0, movable: true, travelDirection: "right" },
+        { trackIndex: 1, movable: false }
+      ]
+    });
+
+    session.executeTransaction(plan.commands, "TX-NEUTRAL-SLIDING-1");
+    expect(session.document.windows[0]).toMatchObject({
+      objectId: "WIN-NEUTRAL-SLIDING-1",
+      mark: "S1",
+      widthMm: 1900,
+      heightMm: 1600,
+      profileSystemId: "AL70",
+      defaultHardwareSetId: "HW-SLIDE-STD"
+    });
+    const cell = session.document.windows[0]?.layout.cells[0];
+    expect(cell).toMatchObject({
+      objectId: "WIN-NEUTRAL-SLIDING-1:CELL-1",
+      type: "sliding",
+      opening: "slide_left"
+    });
+    if (!cell || cell.type !== "sliding") throw new Error("Sliding cell was not created.");
+    expect(cell.openingAssembly).toMatchObject({
+      trackCount: 2,
+      overlapMm: 42,
+      openPercent: 80
+    });
+    expect(cell.openingAssembly.panels[0]).toMatchObject({
+      trackIndex: 1,
+      movable: false
+    });
+    expect(cell.openingAssembly.panels[1]).toMatchObject({
+      trackIndex: 0,
+      movable: true,
+      travelDirection: "left"
+    });
+    expect(session.document.windows[0]?.productTemplateSelection).toBeUndefined();
+    expect(session.undo()).toBe(true);
+    expect(session.document.windows).toHaveLength(0);
+  });
+
   it("updates one unique business number without changing template or geometry", () => {
     const session = new DesignSession(createEmptyDesign("DESIGN-WINDOW-NUMBER"));
     session.execute(createRectangularWindowCommand({
@@ -225,6 +298,74 @@ describe("DesignSession", () => {
     expect(session.document.windows[0]?.designComponentRemarks).toEqual({
       profile: "", glass: "", hardware: "", surround: ""
     });
+  });
+
+  it("updates independent factory-drawing element output flags through history", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-FACTORY-OPTIONS"));
+    session.execute(createUpdateFactoryDrawingElementOptionsCommand({
+      commandId: "FACTORY-OPTIONS-HIDE-DIMENSIONS",
+      objectId: "WIN-1:frame.top",
+      showDimensions: false,
+      showInComponentTable: true
+    }));
+
+    expect(session.document.factoryDrawingElementOptions).toEqual([{
+      objectId: "WIN-1:frame.top",
+      showDimensions: false,
+      showInComponentTable: true
+    }]);
+    expect(session.undo()).toBe(true);
+    expect(session.document.factoryDrawingElementOptions).toEqual([]);
+  });
+
+  it("normalizes user factory marks and rejects duplicate visible numbers", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-FACTORY-NUMBERS"));
+    session.execute(createUpdateFactoryDrawingElementOptionsCommand({
+      commandId: "FACTORY-NUMBER-FIRST",
+      objectId: "WIN-1:frame.top",
+      factoryDrawingNumber: " c1-fr-t01 ",
+      showDimensions: true,
+      showInComponentTable: true
+    }));
+
+    expect(session.document.factoryDrawingElementOptions).toEqual([{
+      objectId: "WIN-1:frame.top",
+      factoryDrawingNumber: "C1-FR-T01",
+      showDimensions: true,
+      showInComponentTable: true
+    }]);
+    expect(() => session.execute(createUpdateFactoryDrawingElementOptionsCommand({
+      commandId: "FACTORY-NUMBER-DUPLICATE",
+      objectId: "WIN-1:frame.bottom",
+      factoryDrawingNumber: "C1-FR-T01",
+      showDimensions: true,
+      showInComponentTable: true
+    }))).toThrow(/already used/i);
+  });
+
+  it("stores and clears one user-locked factory callout placement through history", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-FACTORY-LAYOUT"));
+    session.execute(createUpdateFactoryDrawingAnnotationLayoutCommand({
+      commandId: "FACTORY-LAYOUT-LOCK",
+      annotationId: "PI-LOCAL-1:factory-callout",
+      offsetPaperMm: { x: -18.5, y: 7.25 },
+      locked: true
+    }));
+
+    expect(session.document.factoryDrawingAnnotationLayouts).toEqual([{
+      annotationId: "PI-LOCAL-1:factory-callout",
+      offsetPaperMm: { x: -18.5, y: 7.25 },
+      locked: true
+    }]);
+    session.execute(createUpdateFactoryDrawingAnnotationLayoutCommand({
+      commandId: "FACTORY-LAYOUT-RESET",
+      annotationId: "PI-LOCAL-1:factory-callout",
+      offsetPaperMm: { x: 0, y: 0 },
+      locked: false
+    }));
+    expect(session.document.factoryDrawingAnnotationLayouts).toEqual([]);
+    expect(session.undo()).toBe(true);
+    expect(session.document.factoryDrawingAnnotationLayouts).toHaveLength(1);
   });
 
   it("inserts target-template opening configuration before connected assembly creation", () => {
@@ -982,6 +1123,25 @@ describe("DesignSession", () => {
       session.document,
       window.layout.cells[0]?.objectId
     )).toBe(window.objectId);
+
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: "SET-SELECTION-OWNER-SLIDING",
+      windowId: window.objectId,
+      cellId: window.layout.cells[0]!.objectId,
+      cellType: "sliding",
+      opening: "slide_right",
+      hardwareSetId: "HW-SLIDE-STD",
+      slidingConfiguration: createStandardSlidingConfiguration("slide_right")
+    }));
+    const slidingGeometry = resolveWindowGeometry(session.document.windows[0]!);
+    expect(resolveSelectedOwningWindowId(
+      session.document,
+      slidingGeometry.slidingTracks[0]?.objectId
+    )).toBe(window.objectId);
+    expect(resolveSelectedOwningWindowId(
+      session.document,
+      toDesignObjectId(`${window.layout.cells[0]!.objectId}::P1`)
+    )).toBe(window.objectId);
   });
 
   it("creates one undoable connected fabrication assembly from existing windows", () => {
@@ -1473,6 +1633,96 @@ describe("DesignSession", () => {
       type: "fixed_glass",
       opening: "fixed"
     });
+  });
+
+  it("creates a standard two-panel sliding cell without reusing hinge semantics", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-SLIDING"));
+    session.execute(createRectangularWindowCommand({
+      commandId: "CMD-CREATE-SLIDING",
+      windowId: "WIN-SLIDING",
+      mark: "S1",
+      widthMm: 1800,
+      heightMm: 1500,
+      cellId: "CELL-SLIDING"
+    }));
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: "CMD-SET-SLIDING",
+      windowId: "WIN-SLIDING",
+      cellId: "CELL-SLIDING",
+      cellType: "sliding",
+      opening: "slide_right"
+    }));
+
+    expect(session.document.windows[0]?.layout.cells[0]).toEqual({
+      objectId: "CELL-SLIDING",
+      type: "sliding",
+      opening: "slide_right",
+      hardwareSetId: "HW-SLIDE-STD",
+      openingAssembly: {
+        mechanism: "sliding",
+        panelCount: 2,
+        activePanelCount: 1,
+        trackCount: 2,
+        stackSide: "right",
+        overlapMm: 35,
+        openPercent: 80,
+        panels: [
+          {
+            id: "P1",
+            label: "1号扇",
+            role: "active",
+            movable: true,
+            trackIndex: 0,
+            closedPositionIndex: 0,
+            operationOrder: 0,
+            travelDirection: "right"
+          },
+          {
+            id: "P2",
+            label: "2号扇",
+            role: "passive",
+            movable: false,
+            trackIndex: 1,
+            closedPositionIndex: 1
+          }
+        ],
+        operationSequence: ["P1"]
+      }
+    });
+    expect(session.undo()).toBe(true);
+    expect(session.document.windows[0]?.layout.cells[0]).toMatchObject({
+      type: "fixed_glass",
+      opening: "fixed"
+    });
+  });
+
+  it("validates explicit multi-rail sliding intent at the domain boundary", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-SLIDING-INVALID"));
+    session.execute(createRectangularWindowCommand({
+      commandId: "CMD-CREATE-SLIDING-INVALID",
+      windowId: "WIN-SLIDING-INVALID",
+      mark: "S2",
+      widthMm: 1800,
+      heightMm: 1500,
+      cellId: "CELL-SLIDING-INVALID"
+    }));
+
+    expect(() => session.execute(createSetWindowCellOpeningCommand({
+      commandId: "CMD-SET-SLIDING-INVALID",
+      windowId: "WIN-SLIDING-INVALID",
+      cellId: "CELL-SLIDING-INVALID",
+      cellType: "sliding",
+      opening: "slide_left",
+      slidingConfiguration: {
+        trackCount: 2,
+        overlapMm: 35,
+        panels: [
+          { trackIndex: 0, movable: true, travelDirection: "left" },
+          { trackIndex: 0, movable: false }
+        ]
+      }
+    }))).toThrow("Every declared sliding rail");
+    expect(session.document.revision).toBe(1);
   });
 
   it("creates ordered flying-mullion and independent fixed-mullion double sashes", () => {

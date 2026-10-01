@@ -2,17 +2,22 @@ import {
   createDrawingTextLabelCommand,
   createFabricationAssemblyCommand,
   createRectangularWindowCommand,
+  createUpdateFactoryDrawingAnnotationLayoutCommand,
+  createUpdateFactoryDrawingElementOptionsCommand,
   DesignSession
 } from "@doormes/application";
 import type {
   DesignDocument,
   DrawingTextLabel,
+  FactoryDrawingAnnotationLayoutOverride,
+  FactoryDrawingElementOptions,
   FabricationAssembly,
+  SlidingWindowCell,
   WindowGridLayout,
   WindowTopology,
   WindowUnit
 } from "@doormes/contracts";
-import { createEmptyDesign } from "@doormes/domain";
+import { createEmptyDesign, createSlidingOpeningAssembly } from "@doormes/domain";
 import { resolveWindowGeometry } from "@doormes/geometry-topology";
 
 /** Storage subset shared by browser LocalStorage and deterministic tests. */
@@ -214,6 +219,115 @@ function snapshotNumber(value: unknown, path: string): number {
   return value;
 }
 
+/** Validates and canonicalizes one persisted sliding cell without trusting JSON metadata. */
+function normalizeSnapshotSlidingCell(
+  cellRecord: Record<string, unknown>,
+  path: string
+): SlidingWindowCell {
+  const opening = cellRecord.opening;
+  if (opening !== "slide_left" && opening !== "slide_right") {
+    throw new LocalDesignSnapshotValidationError(
+      `${path}.opening must be slide_left or slide_right.`
+    );
+  }
+  const assemblyRecord = snapshotRecord(cellRecord.openingAssembly, `${path}.openingAssembly`);
+  if (assemblyRecord.mechanism !== "sliding") {
+    throw new LocalDesignSnapshotValidationError(
+      `${path}.openingAssembly.mechanism must be sliding.`
+    );
+  }
+  if (!Array.isArray(assemblyRecord.panels)) {
+    throw new LocalDesignSnapshotValidationError(`${path}.openingAssembly.panels must be an array.`);
+  }
+  const panelRecords = assemblyRecord.panels.map((panel, panelIndex) =>
+    snapshotRecord(panel, `${path}.openingAssembly.panels[${panelIndex}]`));
+  let assembly: SlidingWindowCell["openingAssembly"];
+  try {
+    assembly = createSlidingOpeningAssembly({
+      trackCount: snapshotNumber(
+        assemblyRecord.trackCount,
+        `${path}.openingAssembly.trackCount`
+      ) as 2 | 3 | 4,
+      overlapMm: snapshotNumber(
+        assemblyRecord.overlapMm,
+        `${path}.openingAssembly.overlapMm`
+      ),
+      openPercent: snapshotNumber(
+        assemblyRecord.openPercent,
+        `${path}.openingAssembly.openPercent`
+      ),
+      panels: panelRecords.map((panel, panelIndex) => {
+        if (typeof panel.movable !== "boolean") {
+          throw new LocalDesignSnapshotValidationError(
+            `${path}.openingAssembly.panels[${panelIndex}].movable must be boolean.`
+          );
+        }
+        const travelDirection = panel.travelDirection;
+        if (
+          travelDirection !== undefined &&
+          travelDirection !== "left" &&
+          travelDirection !== "right"
+        ) {
+          throw new LocalDesignSnapshotValidationError(
+            `${path}.openingAssembly.panels[${panelIndex}].travelDirection is invalid.`
+          );
+        }
+        return {
+          trackIndex: snapshotNumber(
+            panel.trackIndex,
+            `${path}.openingAssembly.panels[${panelIndex}].trackIndex`
+          ),
+          movable: panel.movable,
+          ...(travelDirection ? { travelDirection } : {})
+        };
+      })
+    });
+  } catch (error) {
+    if (error instanceof LocalDesignSnapshotValidationError) throw error;
+    throw new LocalDesignSnapshotValidationError(
+      `${path}.openingAssembly is invalid: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  const savedOperationSequence = assemblyRecord.operationSequence;
+  if (
+    snapshotNumber(assemblyRecord.panelCount, `${path}.openingAssembly.panelCount`) !==
+      assembly.panelCount ||
+    snapshotNumber(assemblyRecord.activePanelCount, `${path}.openingAssembly.activePanelCount`) !==
+      assembly.activePanelCount ||
+    assemblyRecord.stackSide !== assembly.stackSide ||
+    !Array.isArray(savedOperationSequence) ||
+    savedOperationSequence.length !== assembly.operationSequence.length ||
+    savedOperationSequence.some((id, index) => id !== assembly.operationSequence[index])
+  ) {
+    throw new LocalDesignSnapshotValidationError(
+      `${path}.openingAssembly derived panel metadata is inconsistent.`
+    );
+  }
+  panelRecords.forEach((panel, panelIndex) => {
+    const canonical = assembly.panels[panelIndex];
+    if (
+      !canonical ||
+      panel.id !== canonical.id ||
+      panel.label !== canonical.label ||
+      panel.role !== canonical.role ||
+      panel.closedPositionIndex !== canonical.closedPositionIndex ||
+      panel.operationOrder !== canonical.operationOrder
+    ) {
+      throw new LocalDesignSnapshotValidationError(
+        `${path}.openingAssembly.panels[${panelIndex}] metadata is inconsistent.`
+      );
+    }
+  });
+  return {
+    objectId: snapshotString(cellRecord.objectId, `${path}.objectId`) as SlidingWindowCell["objectId"],
+    type: "sliding",
+    opening,
+    openingAssembly: assembly,
+    hardwareSetId: snapshotString(cellRecord.hardwareSetId, `${path}.hardwareSetId`)
+  };
+}
+
 /**
  * Migrates the short business number out of an early target-template caption.
  *
@@ -283,7 +397,7 @@ export function parseFormalDesignDocument(value: unknown): DesignDocument {
   root.windows.forEach((candidate, index) => {
     const path = `document.windows[${index}]`;
     const record = snapshotRecord(candidate, path);
-    const window = record as unknown as WindowUnit;
+    const candidateWindow = record as unknown as WindowUnit;
     if (record.kind !== "window") {
       throw new LocalDesignSnapshotValidationError(`${path}.kind must be window.`);
     }
@@ -296,12 +410,18 @@ export function parseFormalDesignDocument(value: unknown): DesignDocument {
       !Array.isArray(layout.cells)) {
       throw new LocalDesignSnapshotValidationError(`${path}.layout is incomplete.`);
     }
-    layout.cells.forEach((cell, cellIndex) => {
+    const normalizedCells = layout.cells.map((cell, cellIndex) => {
       const cellRecord = snapshotRecord(cell, `${path}.layout.cells[${cellIndex}]`);
       snapshotString(cellRecord.objectId, `${path}.layout.cells[${cellIndex}].objectId`);
-      if (!["fixed_glass", "turn_tilt", "top_hung"].includes(String(cellRecord.type))) {
+      if (!["fixed_glass", "turn_tilt", "top_hung", "sliding"].includes(String(cellRecord.type))) {
         throw new LocalDesignSnapshotValidationError(
           `${path}.layout.cells[${cellIndex}].type is not supported.`
+        );
+      }
+      if (cellRecord.type === "sliding") {
+        return normalizeSnapshotSlidingCell(
+          cellRecord,
+          `${path}.layout.cells[${cellIndex}]`
         );
       }
       if (cellRecord.type !== "fixed_glass") {
@@ -314,7 +434,15 @@ export function parseFormalDesignDocument(value: unknown): DesignDocument {
           `${path}.layout.cells[${cellIndex}].hardwareSetId`
         );
       }
+      return cellRecord as unknown as WindowUnit["layout"]["cells"][number];
     });
+    const window: WindowUnit = {
+      ...candidateWindow,
+      layout: {
+        ...candidateWindow.layout,
+        cells: normalizedCells
+      }
+    };
     const geometryMode = record.geometryMode;
     if (geometryMode !== "grid" && geometryMode !== "topology") {
       throw new LocalDesignSnapshotValidationError(`${path}.geometryMode is invalid.`);
@@ -469,13 +597,78 @@ export function parseFormalDesignDocument(value: unknown): DesignDocument {
       );
     }
   });
+  const factoryOptionCandidates = root.factoryDrawingElementOptions ?? [];
+  if (!Array.isArray(factoryOptionCandidates)) {
+    throw new LocalDesignSnapshotValidationError(
+      "document.factoryDrawingElementOptions must be an array."
+    );
+  }
+  factoryOptionCandidates.forEach((candidate, index) => {
+    const path = `document.factoryDrawingElementOptions[${index}]`;
+    const record = snapshotRecord(candidate, path);
+    if (typeof record.showDimensions !== "boolean" ||
+      typeof record.showInComponentTable !== "boolean") {
+      throw new LocalDesignSnapshotValidationError(
+        `${path} visibility fields must be boolean.`
+      );
+    }
+    const options: FactoryDrawingElementOptions = {
+      objectId: snapshotString(record.objectId, `${path}.objectId`) as FactoryDrawingElementOptions["objectId"],
+      ...(record.factoryDrawingNumber !== undefined
+        ? {
+            factoryDrawingNumber: snapshotString(
+              record.factoryDrawingNumber,
+              `${path}.factoryDrawingNumber`
+            )
+          }
+        : {}),
+      showDimensions: record.showDimensions,
+      showInComponentTable: record.showInComponentTable
+    };
+    session.execute(createUpdateFactoryDrawingElementOptionsCommand({
+      commandId: `CMD-RESTORE-FACTORY-OPTIONS-${index + 1}`,
+      ...options
+    }));
+  });
+  const factoryLayoutCandidates = root.factoryDrawingAnnotationLayouts ?? [];
+  if (!Array.isArray(factoryLayoutCandidates)) {
+    throw new LocalDesignSnapshotValidationError(
+      "document.factoryDrawingAnnotationLayouts must be an array."
+    );
+  }
+  factoryLayoutCandidates.forEach((candidate, index) => {
+    const path = `document.factoryDrawingAnnotationLayouts[${index}]`;
+    const record = snapshotRecord(candidate, path);
+    const offset = snapshotRecord(record.offsetPaperMm, `${path}.offsetPaperMm`);
+    if (typeof record.locked !== "boolean") {
+      throw new LocalDesignSnapshotValidationError(`${path}.locked must be boolean.`);
+    }
+    const layout: FactoryDrawingAnnotationLayoutOverride = {
+      annotationId: snapshotString(record.annotationId, `${path}.annotationId`),
+      offsetPaperMm: {
+        x: snapshotNumber(offset.x, `${path}.offsetPaperMm.x`),
+        y: snapshotNumber(offset.y, `${path}.offsetPaperMm.y`)
+      },
+      locked: record.locked
+    };
+    session.execute(createUpdateFactoryDrawingAnnotationLayoutCommand({
+      commandId: `CMD-RESTORE-FACTORY-LAYOUT-${index + 1}`,
+      ...layout
+    }));
+  });
   return {
     ...session.document,
     revision,
     windows: session.document.windows.map((window) => structuredClone(window)),
     assemblies: (session.document.assemblies ?? []).map((assembly) => structuredClone(assembly)),
     drawingTextLabels: (session.document.drawingTextLabels ?? []).map((label) =>
-      structuredClone(label))
+      structuredClone(label)),
+    factoryDrawingElementOptions: (session.document.factoryDrawingElementOptions ?? []).map(
+      (options) => structuredClone(options)
+    ),
+    factoryDrawingAnnotationLayouts: (session.document.factoryDrawingAnnotationLayouts ?? []).map(
+      (layout) => structuredClone(layout)
+    )
   };
 }
 

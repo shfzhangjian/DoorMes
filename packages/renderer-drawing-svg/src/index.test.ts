@@ -110,6 +110,17 @@ describe("renderTechnicalDrawingSheetSvg", () => {
           text: "型材 AL70；玻璃 GLASS-5"
         },
         {
+          annotationId: "PI-LOCAL-TRACE:factory-callout",
+          viewId: view.viewId,
+          sourceObjectIds: ["WIN-001:frame.top", "PI-LOCAL-TRACE"],
+          layer: "materials",
+          priority: 5,
+          kind: "component-callout",
+          anchorModelMm: { x: 600, y: 0 },
+          labelOffsetPaperMm: { x: -18.5, y: 7.25 },
+          text: "W1-FR01"
+        },
+        {
           annotationId: "JOINT-A-GAP",
           viewId: detailView.viewId,
           sourceObjectIds: ["ASSEMBLY-001:J1"],
@@ -167,6 +178,10 @@ describe("renderTechnicalDrawingSheetSvg", () => {
     expect(svg).toContain('data-level="overall"');
     expect(svg).toContain("净宽 1060 mm");
     expect(svg).toContain("型材 AL70；玻璃 GLASS-5");
+    expect(svg).toContain('data-annotation-id="PI-LOCAL-TRACE:factory-callout"');
+    expect(svg).toContain('data-label-offset-x="-18.5"');
+    expect(svg).toContain('data-label-offset-y="7.25"');
+    expect(svg).toContain("W1-FR01");
     expect(svg).toContain('text-anchor="end"');
     expect(svg).toContain('rx="0.7" fill="white"');
     expect(svg).toContain('data-table-kind="manufacturing-materials"');

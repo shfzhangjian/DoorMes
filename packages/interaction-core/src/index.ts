@@ -154,15 +154,17 @@ export interface OpeningPreviewPanelDefinition {
   readonly key: OpeningPreviewPanelKey;
   readonly objectId: string;
   readonly windowId: string;
-  readonly panelId: "P1" | "P2";
+  readonly panelId: string;
+  /** Hinged leaves rotate; sliding leaves translate along their rail. */
+  readonly mechanism: "hinged" | "sliding";
   readonly panelRole: "primary" | "secondary" | "independent";
-  readonly operationOrder: 0 | 1;
+  readonly operationOrder: number;
   readonly operationMode: "ordered" | "independent";
   readonly configuredOpenPercent: number;
   readonly motionMode: "primary" | "tilt";
   readonly supportsTilt: boolean;
   /** Physical full-open limits used by degree-facing controls and projections. */
-  readonly maximumAngleDegreesByMode: Readonly<{
+  readonly maximumAngleDegreesByMode?: Readonly<{
     primary: number;
     tilt?: number;
   }>;
@@ -182,6 +184,9 @@ export function resolveOpeningPreviewMaximumAngleDegrees(
   definition: OpeningPreviewPanelDefinition,
   motionMode: "primary" | "tilt"
 ): number {
+  if (definition.mechanism !== "hinged" || !definition.maximumAngleDegreesByMode) {
+    throw new RangeError(`Opening preview panel does not use a hinge angle: ${definition.key}`);
+  }
   if (motionMode === "tilt") {
     const tiltMaximum = definition.maximumAngleDegreesByMode.tilt;
     if (tiltMaximum === undefined) {
@@ -238,6 +243,27 @@ export function collectOpeningPreviewPanelDefinitions(
   for (const window of document.windows) {
     for (const cell of window.layout.cells) {
       if (cell.type === "fixed_glass") continue;
+      if (cell.type === "sliding") {
+        const assembly = cell.openingAssembly;
+        for (const panel of assembly.panels) {
+          // Fixed/passive panes are geometry, not user-operable preview leaves.
+          if (!panel.movable || !panel.travelDirection) continue;
+          result.push({
+            key: createOpeningPanelKey(cell.objectId, panel.id),
+            objectId: cell.objectId,
+            windowId: window.objectId,
+            panelId: panel.id,
+            mechanism: "sliding",
+            panelRole: panel.role === "active" ? "primary" : "independent",
+            operationOrder: panel.operationOrder ?? 0,
+            operationMode: "independent",
+            configuredOpenPercent: clampOpeningPreviewProgress(assembly.openPercent),
+            motionMode: "primary",
+            supportsTilt: false
+          });
+        }
+        continue;
+      }
       const assembly = cell.openingAssembly;
       const operationMode = cell.type === "turn_tilt"
         ? cell.openingAssembly.operationMode ?? (cell.openingAssembly.mullionMode === "fixed_mullion"
@@ -272,6 +298,7 @@ export function collectOpeningPreviewPanelDefinitions(
           objectId: cell.objectId,
           windowId: window.objectId,
           panelId: panel.id,
+          mechanism: "hinged",
           panelRole: panel.role,
           operationOrder: panel.operationOrder,
           operationMode,
@@ -360,23 +387,34 @@ export class OpeningPreviewStore {
     const retainedSelection = this.#state.selectedPanelKeys.filter((key) =>
       nextDefinitions.has(key)
     );
+    const retainedMechanism = retainedSelection[0]
+      ? nextDefinitions.get(retainedSelection[0])?.mechanism
+      : undefined;
+    const homogeneousRetainedSelection = retainedMechanism
+      ? retainedSelection.filter((key) => nextDefinitions.get(key)?.mechanism === retainedMechanism)
+      : retainedSelection;
     /**
-     * Keep the angle toolbar truthful on first load.
+     * Keep the motion toolbar truthful on first load.
      *
      * The persisted design may intentionally open every leaf at a non-zero
      * target (the migrated double-sash fixture uses 80%). Leaving the transient
      * control selection empty made the canvas show 72 degrees while the toolbar
-     * showed a disabled 0 degrees. Select every newly discovered leaf only when
-     * transitioning from no preview definitions; later user-cleared selections
-     * remain cleared across ordinary document revisions.
+     * showed a disabled 0 degrees. Select the first compatible motion family
+     * (hinged or sliding) on initial load; later user-cleared selections remain
+     * cleared across ordinary document revisions.
      *
-     * @example Loading two 80% leaves checks P1/P2 and reports their real 72°.
+     * @example Loading two 80% hinged leaves checks P1/P2 and reports their real 72°.
      * @since 0.10.40
      * @modified 2026-09-20 - Aligned initial controls with rendered sash state.
      */
-    const nextSelection = !hadDefinitions && retainedSelection.length === 0
-      ? [...nextDefinitions.keys()]
-      : retainedSelection;
+    const nextSelection = !hadDefinitions && homogeneousRetainedSelection.length === 0
+      ? (() => {
+          const firstMechanism = nextDefinitions.values().next().value?.mechanism;
+          return [...nextDefinitions.values()]
+            .filter((definition) => definition.mechanism === firstMechanism)
+            .map((definition) => definition.key);
+        })()
+      : homogeneousRetainedSelection;
     this.#definitions = nextDefinitions;
     this.#replaceState({
       panelProgressPercent: nextProgress,
@@ -394,10 +432,18 @@ export class OpeningPreviewStore {
 
   /** Adds/removes one panel from the multi-selection set. */
   toggleSelected(key: OpeningPreviewPanelKey): void {
-    this.#requireDefinition(key);
+    const definition = this.#requireDefinition(key);
     const selected = new Set(this.#state.selectedPanelKeys);
     if (selected.has(key)) selected.delete(key);
-    else selected.add(key);
+    else {
+      const selectedMechanisms = new Set(
+        [...selected].map((selectedKey) => this.#requireDefinition(selectedKey).mechanism)
+      );
+      if (selectedMechanisms.size > 0 && !selectedMechanisms.has(definition.mechanism)) {
+        selected.clear();
+      }
+      selected.add(key);
+    }
     this.#replaceState({ selectedPanelKeys: [...selected] });
   }
 
@@ -453,6 +499,9 @@ export class OpeningPreviewStore {
     const next = { ...this.#state.panelProgressPercent };
     for (const key of this.#state.selectedPanelKeys) {
       const definition = this.#requireDefinition(key);
+      if (definition.mechanism !== "hinged") {
+        throw new RangeError(`Sliding preview uses a travel percentage, not degrees: ${key}`);
+      }
       const mode = this.#state.panelMotionMode[key] ?? definition.motionMode;
       const maximum = resolveOpeningPreviewMaximumAngleDegrees(definition, mode);
       next[key] = openingAngleDegreesToProgress(angleDegrees, maximum);
@@ -473,6 +522,9 @@ export class OpeningPreviewStore {
     const nextProgress = { ...this.#state.panelProgressPercent };
     for (const key of this.#state.selectedPanelKeys) {
       const definition = this.#requireDefinition(key);
+      if (definition.mechanism !== "hinged") {
+        throw new RangeError(`Sliding preview does not support hinge motion modes: ${key}`);
+      }
       if (motionMode === "tilt" && !definition.supportsTilt) {
         throw new RangeError(`Opening preview panel does not support tilt mode: ${key}`);
       }

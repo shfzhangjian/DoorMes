@@ -92,7 +92,7 @@ export const REFERENCE_SIMULATION_MANUFACTURING_CATALOG = {
 /** Readable, hierarchical local numbers for prototype drawings. */
 export const REFERENCE_SIMULATION_NUMBER_POLICY: PlannedProductionNumberPolicy = {
   policyId: "doormes.reference.hierarchical",
-  policyVersion: "1.0.0",
+  policyVersion: "1.1.0",
   createNumber(context) {
     const positionCode = context.positionCode
       .replace(/FLYINGMULLION/gi, "FM")
@@ -109,8 +109,15 @@ export const REFERENCE_SIMULATION_NUMBER_POLICY: PlannedProductionNumberPolicy =
       .replace(/BOTTOM/gi, "B")
       .replace(/LEFT/gi, "L")
       .replace(/RIGHT/gi, "R");
+    // Position/sequence alone is not unique when an assembly contains two
+    // same-model corner joints. Reuse the stable planned-instance token rather
+    // than hashing it down to 32 bits: the calculator has already checked that
+    // this identity is unique inside the frozen design result.
+    const instanceToken = context.productionInstanceId
+      .replace(/^PI-LOCAL-/i, "")
+      .toUpperCase();
     return {
-      productionNumber: `${context.sourceMark}-${positionCode}-${String(context.sequence).padStart(2, "0")}`,
+      productionNumber: `${context.sourceMark}-${positionCode}-${instanceToken}-${String(context.sequence).padStart(2, "0")}`,
       source: "generated"
     };
   }

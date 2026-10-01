@@ -54,6 +54,134 @@ function member(
 }
 
 describe("formal geometry topology", () => {
+  it("resolves ordinary sliding rails, closed panel overlap and usable travel without hinged geometry", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-SLIDING-GEOMETRY"));
+    session.execute(createRectangularWindowCommand({
+      commandId: "CREATE-SLIDING-GEOMETRY",
+      windowId: "WIN-SLIDING-GEOMETRY",
+      mark: "S1",
+      widthMm: 1800,
+      heightMm: 1500,
+      cellId: "CELL-SLIDING-GEOMETRY"
+    }));
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: "SET-SLIDING-GEOMETRY",
+      windowId: "WIN-SLIDING-GEOMETRY",
+      cellId: "CELL-SLIDING-GEOMETRY",
+      cellType: "sliding",
+      opening: "slide_left"
+    }));
+
+    const geometry = resolveWindowGeometry(session.document.windows[0]!);
+    expect(geometry.cells).toHaveLength(1);
+    expect(geometry.openings).toEqual([]);
+    expect(geometry.slidingTracks).toEqual([
+      expect.objectContaining({
+        trackIndex: 0,
+        trackCount: 2,
+        startXMm: 70,
+        endXMm: 1730,
+        sillYMm: 1430,
+        centerOffsetZMm: 17.5,
+        allocatedDepthMm: 35
+      }),
+      expect.objectContaining({
+        trackIndex: 1,
+        centerOffsetZMm: -17.5,
+        allocatedDepthMm: 35
+      })
+    ]);
+    expect(geometry.slidingPanels).toEqual([
+      expect.objectContaining({
+        panelId: "P1",
+        role: "passive",
+        trackIndex: 1,
+        closedPositionIndex: 0,
+        xMm: 70,
+        widthMm: 847.5,
+        panelPitchMm: 812.5,
+        maximumTravelMm: 0,
+        overlapLeftMm: 0,
+        overlapRightMm: 35
+      }),
+      expect.objectContaining({
+        panelId: "P2",
+        role: "active",
+        trackIndex: 0,
+        closedPositionIndex: 1,
+        travelDirection: "left",
+        xMm: 882.5,
+        widthMm: 847.5,
+        panelPitchMm: 812.5,
+        maximumTravelMm: 812.5,
+        overlapLeftMm: 35,
+        overlapRightMm: 0,
+        openPercent: 80
+      })
+    ]);
+  });
+
+  it("rejects a sliding panel whose authored direction cannot stack inside its host cell", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-SLIDING-BOUNDARY"));
+    session.execute(createRectangularWindowCommand({
+      commandId: "CREATE-SLIDING-BOUNDARY",
+      windowId: "WIN-SLIDING-BOUNDARY",
+      mark: "S2",
+      widthMm: 1800,
+      heightMm: 1500,
+      cellId: "CELL-SLIDING-BOUNDARY"
+    }));
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: "SET-SLIDING-BOUNDARY",
+      windowId: "WIN-SLIDING-BOUNDARY",
+      cellId: "CELL-SLIDING-BOUNDARY",
+      cellType: "sliding",
+      opening: "slide_left",
+      slidingConfiguration: {
+        trackCount: 2,
+        overlapMm: 35,
+        panels: [
+          { trackIndex: 0, movable: true, travelDirection: "left" },
+          { trackIndex: 1, movable: false }
+        ]
+      }
+    }));
+
+    expect(() => resolveWindowGeometry(session.document.windows[0]!))
+      .toThrow("cannot travel left beyond the cell boundary");
+  });
+
+  it("rejects an active sliding panel that would collide with an adjacent panel on the same rail", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-SLIDING-SAME-RAIL"));
+    session.execute(createRectangularWindowCommand({
+      commandId: "CREATE-SLIDING-SAME-RAIL",
+      windowId: "WIN-SLIDING-SAME-RAIL",
+      mark: "S3",
+      widthMm: 2400,
+      heightMm: 1500,
+      cellId: "CELL-SLIDING-SAME-RAIL"
+    }));
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: "SET-SLIDING-SAME-RAIL",
+      windowId: "WIN-SLIDING-SAME-RAIL",
+      cellId: "CELL-SLIDING-SAME-RAIL",
+      cellType: "sliding",
+      opening: "slide_right",
+      slidingConfiguration: {
+        trackCount: 2,
+        overlapMm: 35,
+        panels: [
+          { trackIndex: 0, movable: true, travelDirection: "right" },
+          { trackIndex: 0, movable: false },
+          { trackIndex: 1, movable: false }
+        ]
+      }
+    }));
+
+    expect(() => resolveWindowGeometry(session.document.windows[0]!))
+      .toThrow("cannot stack onto adjacent panel P2 on the same rail");
+  });
+
   it("treats N physically connected windows as one reference-host subject", () => {
     const session = new DesignSession(createEmptyDesign("DESIGN-ASSEMBLY-GEOMETRY"));
     for (const [index, widthMm] of [1200, 900, 800].entries()) {

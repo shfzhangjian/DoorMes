@@ -7,6 +7,8 @@ import type {
   FabricationAssembly,
   FabricationConnectionEdge,
   OpeningHardwareRole,
+  SlidingOpeningPanel,
+  SlidingWindowCell,
   WindowGridLayout,
   WindowInstallation,
   WindowInstallationSide,
@@ -2001,6 +2003,64 @@ export interface ResolvedOpeningGeometry extends ResolvedRectangleMm {
 }
 
 /**
+ * One abstract rail centreline for an ordinary sliding cell.
+ *
+ * `centerOffsetZMm` uses the shared window convention: positive Z is exterior,
+ * negative Z is interior. `allocatedDepthMm` is only the equal section band
+ * available to the rail; it is not a supplier groove/profile dimension. That
+ * distinction keeps early 2D/3D projection deterministic without inventing a
+ * production-ready rail section before a catalog snapshot is approved.
+ *
+ * @since 0.11.4
+ */
+export interface ResolvedSlidingTrackGeometry {
+  readonly objectId: DesignObjectId;
+  readonly sourceObjectId: DesignObjectId;
+  readonly sourceComponentId: string;
+  readonly trackIndex: number;
+  readonly trackCount: 2 | 3 | 4;
+  readonly startXMm: number;
+  readonly endXMm: number;
+  readonly sillYMm: number;
+  readonly centerOffsetZMm: number;
+  readonly allocatedDepthMm: number;
+}
+
+/**
+ * Closed-state sash envelope and usable linear travel for one sliding panel.
+ *
+ * The inherited rectangle is always the closed elevation position. Adjacent
+ * panels are equal-width in this neutral resolver and overlap by the authored
+ * face overlap. Product-specific unequal sashes or rail profiles must replace
+ * this rule through an approved catalog geometry contract rather than renderer
+ * constants.
+ *
+ * @since 0.11.4
+ */
+export interface ResolvedSlidingPanelGeometry extends ResolvedRectangleMm {
+  readonly objectId: DesignObjectId;
+  readonly sourceObjectId: DesignObjectId;
+  readonly assemblySourceComponentId: string;
+  readonly sourceComponentId: string;
+  readonly panelId: string;
+  readonly panelLabel: string;
+  readonly panelIndex: number;
+  readonly panelCount: 2 | 3 | 4 | 5 | 6;
+  readonly role: "active" | "passive";
+  readonly movable: boolean;
+  readonly trackIndex: number;
+  readonly trackCenterOffsetZMm: number;
+  readonly closedPositionIndex: number;
+  readonly overlapLeftMm: number;
+  readonly overlapRightMm: number;
+  readonly panelPitchMm: number;
+  readonly maximumTravelMm: number;
+  readonly openPercent: number;
+  readonly travelDirection?: "left" | "right";
+  readonly operationOrder?: number;
+}
+
+/**
  * Meeting profile shared by fixed- and flying-mullion double assemblies.
  *
  * A flying mullion moves with its secondary leaf; a fixed mullion belongs to the
@@ -2089,8 +2149,120 @@ export interface ResolvedWindowGeometry {
   readonly cells: readonly ResolvedCellGeometry[];
   readonly members: readonly ResolvedMemberGeometry[];
   readonly openings: readonly ResolvedOpeningGeometry[];
+  readonly slidingTracks: readonly ResolvedSlidingTrackGeometry[];
+  readonly slidingPanels: readonly ResolvedSlidingPanelGeometry[];
   readonly meetingMullions: readonly ResolvedMeetingMullionGeometry[];
   readonly hardware: readonly ResolvedOpeningHardwareGeometry[];
+}
+
+/**
+ * Resolves an ordinary sliding cell into neutral rail planes and sash envelopes.
+ *
+ * Algorithm: `n` equal sash faces with adjacent overlap `o` fill clear width
+ * `w`, therefore sash width is `(w + (n - 1)o) / n` and one usable panel pitch
+ * is `(w - o) / n`. A movable panel travels exactly one pitch toward its
+ * adjacent stack panel in this first ordinary-sliding slice. More elaborate
+ * telescopic/cascade travel remains a later mechanism rather than being guessed.
+ *
+ * @param cell Resolved host-cell clear rectangle.
+ * @param source Canonical sliding design cell.
+ * @param assemblySourceComponentId Stable manufacturing source path.
+ * @param sectionDimensions Validated section depth snapshot.
+ * @returns Closed panels and exterior-to-interior abstract rail centrelines.
+ * @throws When overlap or travel direction cannot form a physical adjacent stack.
+ * @since 0.11.4
+ */
+export function resolveSlidingCellGeometry(
+  cell: ResolvedCellGeometry,
+  source: SlidingWindowCell,
+  assemblySourceComponentId: string,
+  sectionDimensions: WindowSectionDimensions
+): Readonly<{
+  tracks: readonly ResolvedSlidingTrackGeometry[];
+  panels: readonly ResolvedSlidingPanelGeometry[];
+}> {
+  const assembly = source.openingAssembly;
+  if (assembly.overlapMm >= cell.widthMm) {
+    throw new RangeError(
+      `Sliding overlap ${assembly.overlapMm}mm must be smaller than cell width ${cell.widthMm}mm.`
+    );
+  }
+  const panelPitchMm = (cell.widthMm - assembly.overlapMm) / assembly.panelCount;
+  const panelWidthMm = panelPitchMm + assembly.overlapMm;
+  if (!Number.isFinite(panelPitchMm) || panelPitchMm <= 0 || panelWidthMm <= 0) {
+    throw new RangeError(`Sliding cell ${cell.objectId} has no positive sash travel geometry.`);
+  }
+
+  const allocatedDepthMm = sectionDimensions.frameDepthMm / assembly.trackCount;
+  const trackCenterOffset = (trackIndex: number): number =>
+    sectionDimensions.frameDepthMm / 2 - allocatedDepthMm * (trackIndex + 0.5);
+  const tracks = Array.from({ length: assembly.trackCount }, (_, trackIndex) => ({
+    objectId: `${cell.objectId}:track.${trackIndex + 1}` as DesignObjectId,
+    sourceObjectId: cell.objectId,
+    sourceComponentId: `${assemblySourceComponentId}.track.${trackIndex + 1}`,
+    trackIndex,
+    trackCount: assembly.trackCount,
+    startXMm: cell.xMm,
+    endXMm: cell.xMm + cell.widthMm,
+    sillYMm: cell.yMm + cell.heightMm,
+    centerOffsetZMm: trackCenterOffset(trackIndex),
+    allocatedDepthMm
+  }));
+
+  const panelAtClosedPosition = new Map<number, SlidingOpeningPanel>(
+    assembly.panels.map((panel) => [panel.closedPositionIndex, panel])
+  );
+  const panels = assembly.panels.map((panel, panelIndex): ResolvedSlidingPanelGeometry => {
+    const targetIndex = panel.travelDirection === "left"
+      ? panel.closedPositionIndex - 1
+      : panel.travelDirection === "right"
+        ? panel.closedPositionIndex + 1
+        : undefined;
+    if (panel.movable && targetIndex === undefined) {
+      throw new Error(`Sliding panel ${panel.id} has no travel direction.`);
+    }
+    const target = targetIndex === undefined ? undefined : panelAtClosedPosition.get(targetIndex);
+    if (panel.movable && !target) {
+      throw new Error(
+        `Sliding panel ${panel.id} cannot travel ${panel.travelDirection} beyond the cell boundary.`
+      );
+    }
+    if (panel.movable && target?.trackIndex === panel.trackIndex) {
+      throw new Error(
+        `Sliding panel ${panel.id} cannot stack onto adjacent panel ${target.id} on the same rail.`
+      );
+    }
+    const sourceComponentId = `${assemblySourceComponentId}.panel.${panel.id}`;
+    return {
+      objectId: `${cell.objectId}:panel.${panel.id}` as DesignObjectId,
+      sourceObjectId: cell.objectId,
+      assemblySourceComponentId,
+      sourceComponentId,
+      panelId: panel.id,
+      panelLabel: panel.label,
+      panelIndex,
+      panelCount: assembly.panelCount,
+      role: panel.role,
+      movable: panel.movable,
+      trackIndex: panel.trackIndex,
+      trackCenterOffsetZMm: trackCenterOffset(panel.trackIndex),
+      closedPositionIndex: panel.closedPositionIndex,
+      overlapLeftMm: panel.closedPositionIndex === 0 ? 0 : assembly.overlapMm,
+      overlapRightMm: panel.closedPositionIndex === assembly.panelCount - 1
+        ? 0
+        : assembly.overlapMm,
+      panelPitchMm,
+      maximumTravelMm: panel.movable ? panelPitchMm : 0,
+      openPercent: assembly.openPercent,
+      ...(panel.travelDirection ? { travelDirection: panel.travelDirection } : {}),
+      ...(panel.operationOrder === undefined ? {} : { operationOrder: panel.operationOrder }),
+      xMm: cell.xMm + panel.closedPositionIndex * panelPitchMm,
+      yMm: cell.yMm,
+      widthMm: panelWidthMm,
+      heightMm: cell.heightMm
+    };
+  });
+  return { tracks, panels };
 }
 
 const EPSILON = 0.000001;
@@ -2735,11 +2907,24 @@ export function resolveWindowGeometry(window: WindowUnit): ResolvedWindowGeometr
     });
   }
   const openings: ResolvedOpeningGeometry[] = [];
+  const slidingTracks: ResolvedSlidingTrackGeometry[] = [];
+  const slidingPanels: ResolvedSlidingPanelGeometry[] = [];
   const meetingMullions: ResolvedMeetingMullionGeometry[] = [];
   for (const cell of cells) {
     const source = window.layout.cells.find((candidate) => candidate.objectId === cell.objectId);
     if (!source || source.type === "fixed_glass") continue;
     const assemblySourceComponentId = `cell.${cell.row + 1}.${cell.column + 1}`;
+    if (source.type === "sliding") {
+      const resolved = resolveSlidingCellGeometry(
+        cell,
+        source,
+        assemblySourceComponentId,
+        sectionDimensions
+      );
+      slidingTracks.push(...resolved.tracks);
+      slidingPanels.push(...resolved.panels);
+      continue;
+    }
     if (source.type === "top_hung") {
       const panel = source.openingAssembly.panels[0];
       openings.push({
@@ -2872,6 +3057,8 @@ export function resolveWindowGeometry(window: WindowUnit): ResolvedWindowGeometr
     cells,
     members,
     openings,
+    slidingTracks,
+    slidingPanels,
     meetingMullions,
     hardware
   };

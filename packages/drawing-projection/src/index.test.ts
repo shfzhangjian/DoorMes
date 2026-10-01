@@ -4,10 +4,12 @@ import {
   createRectangularWindowCommand,
   createSetWindowCellOpeningCommand,
   createUpdateWindowDesignComponentRemarksCommand,
+  createUpdateFactoryDrawingAnnotationLayoutCommand,
+  createUpdateFactoryDrawingElementOptionsCommand,
   DesignSession
 } from "@doormes/application";
 import { createEmptyDesign } from "@doormes/domain";
-import { REFERENCE_WINDOW_INSTALLATION } from "@doormes/geometry-topology";
+import { REFERENCE_WINDOW_INSTALLATION, resolveWindowGeometry } from "@doormes/geometry-topology";
 import { calculateFormalBom } from "@doormes/calculation-engine";
 import type { ManufacturingCatalog } from "@doormes/manufacturing-model";
 import { projectFactoryDrawingSheets, projectFactoryElevationSheet } from "./index";
@@ -118,7 +120,115 @@ function createAssemblySession(
   return session;
 }
 
+/** Creates a long connected product whose calculated labels exceed one callout lane. */
+function createDenseAssemblySession(): DesignSession {
+  const session = new DesignSession(createEmptyDesign("DESIGN-DRAWING-DENSE"));
+  const instances = [];
+  const joints = [];
+  for (let index = 0; index < 4; index += 1) {
+    const ordinal = index + 1;
+    const windowId = `WIN-DENSE-${ordinal}`;
+    const cellId = `CELL-DENSE-${ordinal}`;
+    session.execute(createRectangularWindowCommand({
+      commandId: `CREATE-DENSE-${ordinal}`,
+      windowId,
+      mark: `D${ordinal}`,
+      widthMm: 1200,
+      heightMm: 1500,
+      cellId,
+      defaultGlassTypeId: "GL-LOWE-24"
+    }));
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: `OPEN-DENSE-${ordinal}`,
+      windowId,
+      cellId,
+      cellType: "turn_tilt",
+      opening: index % 2 === 0 ? "left_in" : "right_in",
+      hardwareSetId: "HW-TT-STD"
+    }));
+    instances.push({
+      objectId: `ASSEMBLY-DENSE:I${ordinal}`,
+      windowId,
+      transform: { xMm: index * 1230, yMm: 0, zMm: 0, rotationYDeg: 0 }
+    });
+    if (index > 0) {
+      joints.push({
+        objectId: `ASSEMBLY-DENSE:J${index}`,
+        jointType: "mullion_joint" as const,
+        firstInstanceId: `ASSEMBLY-DENSE:I${index}`,
+        firstEdge: "right" as const,
+        secondInstanceId: `ASSEMBLY-DENSE:I${ordinal}`,
+        secondEdge: "left" as const,
+        gapMm: 30,
+        factoryScope: "factory" as const
+      });
+    }
+  }
+  session.execute(createFabricationAssemblyCommand({
+    commandId: "CREATE-DENSE-ASSEMBLY",
+    assemblyId: "ASSEMBLY-DENSE",
+    mark: "A-DENSE",
+    instances,
+    joints,
+    openingClearance: { topMm: 10, rightMm: 12, bottomMm: 15, leftMm: 12 },
+    installation: REFERENCE_WINDOW_INSTALLATION
+  }));
+  return session;
+}
+
 describe("projectFactoryElevationSheet", () => {
+  it("keeps sliding design geometry in EBOM and blocks invented manufacturing sizes", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-SLIDING-EBOM"));
+    session.execute(createRectangularWindowCommand({
+      commandId: "CREATE-SLIDING-EBOM",
+      windowId: "WIN-SLIDING-EBOM",
+      mark: "S1",
+      widthMm: 1200,
+      heightMm: 1500,
+      cellId: "CELL-SLIDING-EBOM",
+      defaultGlassTypeId: "GL-LOWE-24"
+    }));
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: "SET-SLIDING-EBOM",
+      windowId: "WIN-SLIDING-EBOM",
+      cellId: "CELL-SLIDING-EBOM",
+      cellType: "sliding",
+      opening: "slide_right",
+      hardwareSetId: "HW-SLIDE-STD"
+    }));
+
+    const result = calculateFormalBom(session.document, TEST_CATALOG);
+    const root = result.ebom.find((item) => item.type === "window");
+    const slidingCell = result.ebom.find((item) => item.type === "sliding");
+
+    expect(root?.layout.cells[0]).toMatchObject({
+      cellId: "CELL-SLIDING-EBOM",
+      type: "sliding",
+      opening: "slide_right",
+      hardwareSetId: "HW-SLIDE-STD",
+      openingAssembly: { mechanism: "sliding", panelCount: 2, trackCount: 2 }
+    });
+    expect(slidingCell).toMatchObject({
+      sourceWindowId: "WIN-SLIDING-EBOM",
+      sourceComponentId: "cell.1.1",
+      type: "sliding",
+      widthMm: 1060,
+      heightMm: 1360,
+      openingAssembly: { overlapMm: 35 }
+    });
+    expect(result.features).toEqual([]);
+    expect(result.processFeatures).toEqual([]);
+    expect(result.mbom.lines).toEqual([]);
+    expect(result.confirmation).toMatchObject({
+      allowed: false,
+      blockingDiagnosticCodes: ["SLIDING_MANUFACTURING_MAPPING_REQUIRED"]
+    });
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({
+      code: "SLIDING_MANUFACTURING_MAPPING_REQUIRED",
+      sourceObjectIds: ["WIN-SLIDING-EBOM", "CELL-SLIDING-EBOM"]
+    }));
+  });
+
   it("projects one connected product without reading interactive SVG", () => {
     const session = createAssemblySession();
     const sheet = projectFactoryElevationSheet(session.document, "ASSEMBLY-DRAWING");
@@ -174,8 +284,10 @@ describe("projectFactoryElevationSheet", () => {
       item.viewId === detail?.viewId && item.kind === "component-callout" &&
       item.text === "连接料截面待正式目录"
     )).toBe(true);
-    expect(sheet.tables?.map((table) => table.kind)).toEqual(["design-selection"]);
-    const selectionTable = sheet.tables?.find((table) => table.kind === "design-selection");
+    expect(sheet.tables).toEqual([]);
+    const issue = projectFactoryDrawingSheets(session.document, "ASSEMBLY-DRAWING");
+    const selectionTable = issue.slice(1).flatMap((page) => page.tables ?? [])
+      .find((table) => table.kind === "design-selection");
     expect(selectionTable?.title).toBe("门窗设计组成件");
     expect(selectionTable?.columns[0]).toMatchObject({ key: "number", label: "编号" });
     expect(selectionTable?.columns[3]).toMatchObject({
@@ -196,27 +308,33 @@ describe("projectFactoryElevationSheet", () => {
     );
     expect(selectionCalloutNumbers).toEqual(selectionNumbers);
     expect(selectionTable?.rows[0]?.cells[4]).toBe("外框转角下料复核");
-    expect(JSON.stringify(sheet.tables)).not.toMatch(
+    expect(JSON.stringify(issue.flatMap((page) => page.tables ?? []))).not.toMatch(
       /冻结信息|生产数据状态|连接件与工序|工序信息|规则\/工序|BOM-(?:NOT-CALCULATED|STALE|CURRENT)/
     );
-    expect(sheet.tables?.every((table) => table.layout.bodyFontSizePaperMm >= 3)).toBe(true);
+    expect(issue.slice(1).flatMap((page) => page.tables ?? []).every(
+      (table) => table.layout.bodyFontSizePaperMm >= 3
+    )).toBe(true);
     expect(JSON.stringify(sheet)).not.toMatch(/design-window|<svg|three/i);
   });
 
   it("keeps the table design-only while a current snapshot enriches connection details", () => {
     const session = createAssemblySession();
     const result = calculateFormalBom(session.document, TEST_CATALOG);
-    const sheet = projectFactoryElevationSheet(session.document, "ASSEMBLY-DRAWING", {
+    const sheets = projectFactoryDrawingSheets(session.document, "ASSEMBLY-DRAWING", {
       productionSnapshot: { sourceRevision: session.document.revision, result }
     });
+    const sheet = sheets[0]!;
 
-    expect(sheet.tables?.map((table) => table.kind)).toEqual(["design-selection"]);
-    expect(sheet.tables?.[0]?.columns.map((column) => column.label)).toEqual([
+    expect(sheet.tables).toEqual([]);
+    const scheduleTables = sheets.slice(1).flatMap((page) => page.tables ?? []);
+    expect(scheduleTables[0]?.columns.map((column) => column.label)).toEqual([
       "编号", "构件", "型号/物料编码", "下料(mm)·端角·数量", "备注"
     ]);
-    const componentRows = sheet.tables?.[0]?.rows.filter((row) => row.cells[0] !== "…") ?? [];
-    const componentNumbers = componentRows.map((row) => row.cells[0]);
+    const componentRows = scheduleTables.flatMap((table) => table.rows);
+    const componentNumbers = componentRows.flatMap((row) => row.cells[0] ? [row.cells[0]] : []);
     expect(new Set(componentNumbers).size).toBe(componentNumbers.length);
+    expect(componentNumbers.every((number) => /^[A-Z0-9_-]+-(?:FR|SA|MU|BD|GL|SE|HD|HG|HW|PN|TR|IN|JT|RF|FT|JS|CV|PR)\d{2}$/.test(number))).toBe(true);
+    expect(componentNumbers.some((number) => number.includes("PI-LOCAL"))).toBe(false);
     expect(componentNumbers).not.toContain("W1-PF");
     expect(componentRows.some((row) =>
       row.cells[2] === "AL70-K01" &&
@@ -228,6 +346,7 @@ describe("projectFactoryElevationSheet", () => {
     const calculatedCallouts = sheet.annotations.flatMap((annotation) =>
       annotation.kind === "component-callout" &&
       annotation.viewId === sheet.views[0]?.viewId &&
+      annotation.text !== undefined &&
       componentNumbers.includes(annotation.text)
         ? [annotation.text ?? ""]
         : []
@@ -250,9 +369,9 @@ describe("projectFactoryElevationSheet", () => {
         !["connector", "reinforcement", "cover"].includes(feature.role)) return [];
       return [instance.productionInstanceId];
     });
-    const calledOutInstanceIds = sheet.annotations.flatMap((annotation) =>
+    const calledOutInstanceIds = sheets.flatMap((page) => page.annotations).flatMap((annotation) =>
       annotation.kind === "component-callout" &&
-      annotation.viewId === sheet.views[0]?.viewId
+      annotation.sourceObjectIds.some((sourceId) => sourceId.startsWith("PI-LOCAL-"))
         ? annotation.sourceObjectIds.filter((sourceId) => sourceId.startsWith("PI-LOCAL-"))
         : []
     );
@@ -285,6 +404,7 @@ describe("projectFactoryElevationSheet", () => {
     expect(sheets.every((sheet) => sheet.pageCount === sheets.length)).toBe(true);
     expect(sheets.every((sheet) => sheet.drawingNumber === sheets[0]?.drawingNumber)).toBe(true);
     expect(sheets.every((sheet) => sheet.drawingVersion === sheets[0]?.drawingVersion)).toBe(true);
+    expect(sheets[0]?.tables).toEqual([]);
     const componentRows = sheets.flatMap((sheet) =>
       sheet.tables?.flatMap((table) => table.rows) ?? []
     );
@@ -292,16 +412,226 @@ describe("projectFactoryElevationSheet", () => {
     expect(componentRows.some((row) => row.cells[0] === "…")).toBe(false);
     expect(new Set(componentRows.map((row) => row.cells[0])).size).toBe(componentRows.length);
     const scheduleNumbers = new Set(componentRows.map((row) => row.cells[0]));
-    const calloutNumbers = sheets[0]!.annotations.flatMap((annotation) =>
+    const calloutNumbers = sheets.flatMap((sheet) => sheet.annotations).flatMap((annotation) =>
       annotation.kind === "component-callout" &&
       annotation.sourceObjectIds.some((sourceId) => sourceId.startsWith("PI-LOCAL-"))
         ? [annotation.text ?? ""]
         : []
     );
     expect(calloutNumbers.every((number) => scheduleNumbers.has(number))).toBe(true);
-    expect(sheets.slice(1).every((sheet) =>
-      sheet.views.length === 0 && sheet.title.includes("续表")
+    const scheduleSheets = sheets.filter((sheet) => sheet.title.includes("组成件表"));
+    expect(scheduleSheets.length).toBeGreaterThan(0);
+    expect(scheduleSheets.every((sheet) =>
+      sheet.views.length === 0
     )).toBe(true);
+  });
+
+  it("moves outer-lane numbers to enlarged source-scoped detail pages", () => {
+    const session = createDenseAssemblySession();
+    const result = calculateFormalBom(session.document, TEST_CATALOG);
+    const sheets = projectFactoryDrawingSheets(session.document, "ASSEMBLY-DENSE", {
+      productionSnapshot: { sourceRevision: session.document.revision, result }
+    });
+    const detailSheets = sheets.filter((sheet) => sheet.title.includes("构件编号详图"));
+    const scheduleSheets = sheets.filter((sheet) => sheet.title.includes("组成件表"));
+
+    expect(detailSheets.length).toBeGreaterThan(0);
+    expect(detailSheets.every((sheet) =>
+      sheet.views.length === 1 && sheet.views[0]?.viewKind === "detail" &&
+      (sheet.tables ?? []).length === 0
+    )).toBe(true);
+    expect(scheduleSheets.length).toBeGreaterThan(0);
+    expect(scheduleSheets.every((sheet) => sheet.views.length === 0)).toBe(true);
+    expect(sheets.map((sheet) => sheet.pageNumber)).toEqual(
+      sheets.map((_sheet, index) => index + 1)
+    );
+    expect(sheets.every((sheet) => sheet.pageCount === sheets.length)).toBe(true);
+
+    const featureById = new Map(result.features.map((feature) => [feature.featureId, feature]));
+    const expectedVisible = result.productionInstances.flatMap((instance) => {
+      const feature = featureById.get(instance.sourceFeatureId);
+      if (!feature || feature.kind === "seal-path" || feature.kind === "installation-material") {
+        return [];
+      }
+      if (feature.kind === "hardware-demand" &&
+        !/\.(?:handle|hinge)$/i.test(feature.sourceComponentId)) return [];
+      if (feature.kind === "engineering-joint-material" &&
+        !["connector", "reinforcement", "cover"].includes(feature.role)) return [];
+      return [instance.productionInstanceId];
+    });
+    const printed = sheets.flatMap((sheet) => sheet.annotations).flatMap((annotation) =>
+      annotation.kind === "component-callout"
+        ? annotation.sourceObjectIds.filter((sourceId) => sourceId.startsWith("PI-LOCAL-"))
+        : []
+    );
+    expect(new Set(printed)).toEqual(new Set(expectedVisible));
+    expect(printed).toHaveLength(expectedVisible.length);
+  });
+
+  it("keeps per-element dimension and schedule visibility independent", () => {
+    const session = createAssemblySession();
+    session.execute(createUpdateFactoryDrawingElementOptionsCommand({
+      commandId: "HIDE-W1-DIMENSIONS",
+      objectId: "WIN-DRAWING-W1",
+      showDimensions: false,
+      showInComponentTable: true
+    }));
+
+    const dimensionHidden = projectFactoryDrawingSheets(
+      session.document,
+      "ASSEMBLY-DRAWING"
+    );
+    expect(dimensionHidden[0]?.annotations.some((annotation) =>
+      annotation.kind === "linear-dimension" &&
+      annotation.sourceObjectIds.includes("WIN-DRAWING-W1")
+    )).toBe(false);
+    expect(dimensionHidden.slice(1).flatMap((page) => page.tables ?? [])
+      .flatMap((table) => table.rows)
+      .some((row) => row.cells[0]?.startsWith("W1-"))).toBe(true);
+
+    session.execute(createUpdateFactoryDrawingElementOptionsCommand({
+      commandId: "HIDE-W1-SCHEDULE",
+      objectId: "WIN-DRAWING-W1",
+      showDimensions: true,
+      showInComponentTable: false
+    }));
+    const scheduleHidden = projectFactoryDrawingSheets(
+      session.document,
+      "ASSEMBLY-DRAWING"
+    );
+    const scheduleRows = scheduleHidden.slice(1).flatMap((page) => page.tables ?? [])
+      .flatMap((table) => table.rows)
+    expect(scheduleRows.some((row) => row.cells[0]?.startsWith("W1-"))).toBe(false);
+    expect(scheduleRows.some((row) => row.cells[0]?.startsWith("W2-"))).toBe(true);
+    expect(scheduleHidden[0]?.annotations.some((annotation) =>
+      annotation.kind === "component-callout" &&
+      annotation.sourceObjectIds.includes("WIN-DRAWING-W1")
+    )).toBe(false);
+    expect(scheduleHidden[0]?.annotations.some((annotation) =>
+      annotation.kind === "component-callout" &&
+      annotation.sourceObjectIds.includes("WIN-DRAWING-W2")
+    )).toBe(true);
+  });
+
+  it("prints a user short number while retaining the internal instance ID for traceability", () => {
+    const session = createAssemblySession();
+    const topFrame = resolveWindowGeometry(session.document.windows[0]!).frames.find(
+      (frame) => frame.sourceComponentId === "frame.top"
+    )!;
+    session.execute(createUpdateFactoryDrawingElementOptionsCommand({
+      commandId: "CUSTOM-TOP-FRAME-NUMBER",
+      objectId: topFrame.objectId,
+      factoryDrawingNumber: "C1-FR-T01",
+      showDimensions: true,
+      showInComponentTable: true
+    }));
+    const result = calculateFormalBom(session.document, TEST_CATALOG);
+    const sheets = projectFactoryDrawingSheets(session.document, "ASSEMBLY-DRAWING", {
+      productionSnapshot: { sourceRevision: session.document.revision, result }
+    });
+    const customRow = sheets.slice(1).flatMap((page) => page.tables ?? [])
+      .flatMap((table) => table.rows)
+      .find((row) => row.sourceObjectIds.includes(topFrame.objectId));
+
+    expect(customRow?.cells[0]).toBe("C1-FR-T01");
+    expect(customRow?.rowId).toMatch(/^PI-LOCAL-/);
+    expect(sheets[0]?.annotations.some((annotation) =>
+      annotation.kind === "component-callout" &&
+      annotation.text === "C1-FR-T01" &&
+      annotation.sourceObjectIds.some((sourceId) => sourceId.startsWith("PI-LOCAL-"))
+    )).toBe(true);
+  });
+
+  it("automatically separates calculated labels and lets one manual paper offset win", () => {
+    const session = createAssemblySession();
+    const result = calculateFormalBom(session.document, TEST_CATALOG);
+    const project = () => projectFactoryElevationSheet(
+      session.document,
+      "ASSEMBLY-DRAWING",
+      { productionSnapshot: { sourceRevision: session.document.revision, result } }
+    );
+    const automaticSheet = project();
+    const view = automaticSheet.views[0]!;
+    const calculated = automaticSheet.annotations.filter((annotation) =>
+      annotation.kind === "component-callout" &&
+      annotation.viewId === view.viewId &&
+      annotation.sourceObjectIds.some((sourceId) => sourceId.startsWith("PI-LOCAL-"))
+    );
+    const labelPoints = calculated.map((annotation) => {
+      if (annotation.kind === "linear-dimension") throw new Error("unexpected dimension");
+      const offset = annotation.labelOffsetPaperMm!;
+      return {
+        annotation,
+        x: view.framePaperMm.x +
+          (annotation.anchorModelMm.x - view.modelBoundsMm.x) / view.scaleDenominator + offset.x,
+        y: view.framePaperMm.y +
+          (annotation.anchorModelMm.y - view.modelBoundsMm.y) / view.scaleDenominator + offset.y
+      };
+    });
+    expect(new Set(labelPoints.map((point) => `${point.x.toFixed(3)}:${point.y.toFixed(3)}`)).size)
+      .toBe(labelPoints.length);
+    const lanes = new Map<string, typeof labelPoints>();
+    labelPoints.forEach((point) => {
+      const key = point.x.toFixed(3);
+      lanes.set(key, [...(lanes.get(key) ?? []), point]);
+    });
+    for (const lane of lanes.values()) {
+      const ys = lane.map((point) => point.y).sort((a, b) => a - b);
+      ys.slice(1).forEach((value, index) => {
+        expect(value - ys[index]!).toBeGreaterThanOrEqual(6.19);
+      });
+    }
+
+    const target = labelPoints[0]!.annotation;
+    session.execute(createUpdateFactoryDrawingAnnotationLayoutCommand({
+      commandId: "LOCK-CALLOUT-POSITION",
+      annotationId: target.annotationId,
+      offsetPaperMm: { x: -31.5, y: 12.25 },
+      locked: true
+    }));
+    const refreshedResult = calculateFormalBom(session.document, TEST_CATALOG);
+    const lockedSheet = projectFactoryElevationSheet(session.document, "ASSEMBLY-DRAWING", {
+      productionSnapshot: { sourceRevision: session.document.revision, result: refreshedResult }
+    });
+    const locked = lockedSheet.annotations.find((annotation) =>
+      annotation.annotationId === target.annotationId
+    );
+    expect(locked?.kind === "component-callout" ? locked.labelOffsetPaperMm : undefined)
+      .toEqual({ x: -31.5, y: 12.25 });
+  });
+
+  it("filters printed piece numbers without changing the component schedule", () => {
+    const session = createAssemblySession();
+    const result = calculateFormalBom(session.document, TEST_CATALOG);
+    const snapshot = { sourceRevision: session.document.revision, result };
+    const profiles = projectFactoryDrawingSheets(session.document, "ASSEMBLY-DRAWING", {
+      productionSnapshot: snapshot,
+      componentCalloutMode: "profiles"
+    });
+    const glassHardware = projectFactoryDrawingSheets(session.document, "ASSEMBLY-DRAWING", {
+      productionSnapshot: snapshot,
+      componentCalloutMode: "glass-hardware"
+    });
+    const visibleFeatureKinds = (sheet: typeof profiles[number]) => {
+      const featureById = new Map(result.features.map((feature) => [feature.featureId, feature]));
+      return sheet.annotations.flatMap((annotation) => {
+        if (annotation.kind !== "component-callout" ||
+          !annotation.sourceObjectIds.some((id) => id.startsWith("PI-LOCAL-"))) return [];
+        const feature = annotation.sourceObjectIds.map((id) => featureById.get(id)).find(Boolean);
+        return feature ? [feature.kind] : [];
+      });
+    };
+    expect(new Set(visibleFeatureKinds(profiles[0]!))).toEqual(
+      new Set(["profile-cut", "engineering-joint-material"])
+    );
+    expect(new Set(visibleFeatureKinds(glassHardware[0]!))).toEqual(
+      new Set(["glass-panel", "hardware-demand"])
+    );
+    expect(profiles.slice(1).flatMap((sheet) => sheet.tables ?? [])
+      .flatMap((table) => table.rows).length).toBe(
+        glassHardware.slice(1).flatMap((sheet) => sheet.tables ?? [])
+          .flatMap((table) => table.rows).length
+      );
   });
 
   it("maps all three straight connection semantics into traceable node details", () => {
@@ -330,7 +660,7 @@ describe("projectFactoryElevationSheet", () => {
       expect(titleText).toContain(label);
       expect(titleText).toContain(`${orientation}截面示意`);
       expect(connectorText).toContain(connectorCode);
-      expect(sheet.tables?.map((table) => table.kind)).toEqual(["design-selection"]);
+      expect(sheet.tables).toEqual([]);
       expect(detail?.modelBoundsMm.width).toBe(170);
       expect(sheet.annotations.some((annotation) =>
         annotation.viewId === detail?.viewId && annotation.kind === "linear-dimension" &&
@@ -349,7 +679,7 @@ describe("projectFactoryElevationSheet", () => {
       productionSnapshot: { sourceRevision: session.document.revision - 1, result }
     });
 
-    expect(sheet.tables?.map((table) => table.kind)).toEqual(["design-selection"]);
+    expect(sheet.tables).toEqual([]);
     expect(JSON.stringify(sheet.tables)).not.toMatch(/BOM-STALE|生产数据状态/);
   });
 

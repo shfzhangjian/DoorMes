@@ -106,7 +106,7 @@ export function normalizeLegacyBomForComparison(value: unknown): unknown {
  * @throws When required arrays or fields are missing.
  * @example `adaptLegacyManufacturingCatalog(legacy.catalog)`.
  * @since 0.2.0
- * @modified 2026-09-17 - Added first legacy-catalog calculation adapter.
+ * @modified 2026-10-01 - Added strict versioned sliding rule adaptation.
  */
 export function adaptLegacyManufacturingCatalog(value: unknown): ManufacturingCatalog {
   if (!value || typeof value !== "object") {
@@ -116,6 +116,7 @@ export function adaptLegacyManufacturingCatalog(value: unknown): ManufacturingCa
     profileSystems?: unknown;
     glassTypes?: unknown;
     hardwareSets?: unknown;
+    slidingRules?: unknown;
   };
   if (
     !Array.isArray(source.profileSystems) ||
@@ -125,6 +126,9 @@ export function adaptLegacyManufacturingCatalog(value: unknown): ManufacturingCa
     throw new Error(
       "The manufacturing catalog must contain profileSystems, glassTypes and hardwareSets arrays."
     );
+  }
+  if (source.slidingRules !== undefined && !Array.isArray(source.slidingRules)) {
+    throw new Error("The manufacturing catalog slidingRules field must be an array when provided.");
   }
 
   const profileSystems = source.profileSystems.map((item, index) => {
@@ -168,7 +172,29 @@ export function adaptLegacyManufacturingCatalog(value: unknown): ManufacturingCa
         : adaptHardwareMountingRule(record.mountingRule, `hardwareSets/${index}/mountingRule`)
     } satisfies HardwareSetSpec;
   });
-  return { profileSystems, glassTypes, hardwareSets };
+  const slidingRules = source.slidingRules?.map((item, index) =>
+    adaptSlidingManufacturingRule(item, `slidingRules/${index}`)
+  );
+  if (slidingRules) {
+    const seenRuleVersions = new Set<string>();
+    for (const [index, rule] of slidingRules.entries()) {
+      const key = `${rule.ruleId}@${rule.ruleVersion}`;
+      if (seenRuleVersions.has(key)) throw new Error(`slidingRules/${index} duplicates rule ${key}.`);
+      seenRuleVersions.add(key);
+      if (!profileSystems.some((profile) => profile.id === rule.profileSystemId)) {
+        throw new Error(`slidingRules/${index}/profileSystemId references an unknown profile system.`);
+      }
+      if (!hardwareSets.some((hardware) => hardware.id === rule.hardwareSetId)) {
+        throw new Error(`slidingRules/${index}/hardwareSetId references an unknown hardware set.`);
+      }
+    }
+  }
+  return {
+    profileSystems,
+    glassTypes,
+    hardwareSets,
+    ...(slidingRules === undefined ? {} : { slidingRules })
+  };
 }
 
 /**
@@ -529,11 +555,14 @@ export interface FormalBomCalculationOptions {
 /**
  * Calculates the supported formal window BOM through manufacturing features.
  *
- * Scope is deliberately strict: rectangular rule grids containing fixed glass
- * or the migrated single-panel tilt-turn cell, plus supported topology members.
- * Unsupported layouts throw instead of returning an incomplete BOM. Algorithm:
- * resolve catalog snapshots, extract frame/glass/seal/bead features, then
- * materialize deterministic MBOM lines in the same order as the legacy engine.
+ * Manufacturing-feature scope is deliberately strict: rectangular rule grids
+ * containing fixed glass or migrated hinged openings, plus supported topology
+ * members. Ordinary sliding cells retain their full engineering geometry in
+ * EBOM, but emit no sliding materials or processes until a reviewed series and
+ * hardware mapping exists; a blocking diagnostic prevents production release.
+ * Other unsupported layouts throw instead of returning an incomplete BOM.
+ * Algorithm: resolve supported catalog snapshots, extract manufacturing
+ * features, then materialize deterministic MBOM lines.
  *
  * @param document Formal shared design snapshot.
  * @param catalog Immutable material snapshot for this calculation run.
@@ -541,7 +570,7 @@ export interface FormalBomCalculationOptions {
  * @example The 1200×1500 fixture produces eight lines; a two-column fixture
  * produces thirteen including one through mullion.
  * @since 0.2.0
- * @modified 2026-09-22 - Accepted an injectable BOM-014A planned-number policy.
+ * @modified 2026-10-01 - Retained sliding EBOM and added an explicit mapping gate.
  */
 export function calculateFormalBom(
   document: DesignDocument,
@@ -568,7 +597,9 @@ export function calculateFormalBom(
   const processFeatures: ProcessFeature[] = [
     ...document.windows.flatMap((window) => [
       ...extractSurfaceTreatmentProcessFeatures(window, features),
-      ...extractOpeningProcessFeatures(window, catalog)
+      ...(window.layout.cells.some((cell) => cell.type === "sliding")
+        ? []
+        : extractOpeningProcessFeatures(window, catalog))
     ]),
     ...assemblyManufacturing.processFeatures
   ];
@@ -576,6 +607,7 @@ export function calculateFormalBom(
     ...document.windows.flatMap((window) => [
       ...diagnoseProductTemplateSelection(window),
       ...diagnoseWindowTopology(window),
+      ...diagnoseSlidingManufacturing(window),
       ...diagnoseOpeningManufacturing(window, catalog),
       ...diagnoseOpeningInstallationClearance(window)
     ]),
@@ -858,11 +890,20 @@ function materializeEngineeringBom(
     quantity: window.quantity,
     seriesId: window.profileSystemId,
     geometryMode: window.geometryMode,
-    layout: {
+      layout: {
       columns: [...window.layout.columns],
       rows: [...window.layout.rows],
-      cells: window.layout.cells.map((cell) =>
-        cell.type === "turn_tilt"
+      cells: window.layout.cells.map((cell) => {
+        if (cell.type === "sliding") {
+          return {
+            cellId: cell.objectId,
+            type: cell.type,
+            opening: cell.opening,
+            openingAssembly: structuredClone(cell.openingAssembly),
+            hardwareSetId: cell.hardwareSetId
+          };
+        }
+        return cell.type === "turn_tilt"
           ? {
               cellId: cell.objectId,
               type: cell.type,
@@ -878,8 +919,8 @@ function materializeEngineeringBom(
                 openingAssembly: toLegacyTopHungOpeningAssembly(cell.openingAssembly),
                 hardwareSetId: cell.hardwareSetId
               }
-            : { cellId: cell.objectId, type: cell.type, opening: cell.opening }
-      )
+            : { cellId: cell.objectId, type: cell.type, opening: cell.opening };
+      })
     },
     topology: {
       coordinateSystem: "normalized-inner",
@@ -974,7 +1015,15 @@ function materializeEngineeringBom(
         heightMm: Math.round(heightMm)
       };
       result.push(
-        cell.type === "turn_tilt"
+        cell.type === "sliding"
+          ? {
+              ...common,
+              type: cell.type,
+              opening: cell.opening,
+              openingAssembly: structuredClone(cell.openingAssembly),
+              hardwareSetId: cell.hardwareSetId
+            }
+          : cell.type === "turn_tilt"
           ? {
               ...common,
               type: cell.type,
@@ -1478,13 +1527,17 @@ function extractRectangularWindowFeatures(
     window.shape.type !== "rectangular" ||
     window.layout.cells.length !== window.layout.columns.length * window.layout.rows.length ||
     window.layout.cells.some(
-      (cell) => !["fixed_glass", "turn_tilt", "top_hung"].includes(cell.type)
+      (cell) => !["fixed_glass", "turn_tilt", "top_hung", "sliding"].includes(cell.type)
     )
   ) {
     throw new Error(
       `Window ${window.objectId} is outside the rectangular fixed-grid rule scope.`
     );
   }
+
+  // A sliding cell has valid design/EBOM geometry, but no supplier-reviewed
+  // section and clearance map yet. Do not borrow hinged-window cut rules.
+  if (window.layout.cells.some((cell) => cell.type === "sliding")) return [];
 
   const series = catalog.profileSystems.find((item) => item.id === window.profileSystemId);
   if (!series) throw new Error(`Profile system ${window.profileSystemId} was not found.`);
@@ -1621,6 +1674,11 @@ function extractRectangularWindowFeatures(
         0,
         rowHeight - (window.layout.rows.length > 1 ? series.faceWidthMm * 0.35 : 0)
       );
+      if (cell.type === "sliding") {
+        throw new Error(
+          `Window ${window.objectId} sliding manufacturing mapping is not implemented.`
+        );
+      }
       if (cell.type !== "fixed_glass") {
         features.push(
           ...extractOpeningFeatures({
@@ -2367,7 +2425,7 @@ function diagnoseOpeningManufacturing(
 ): ManufacturingDiagnostic[] {
   const diagnostics: ManufacturingDiagnostic[] = [];
   for (const cell of window.layout.cells) {
-    if (cell.type === "fixed_glass") continue;
+    if (cell.type === "fixed_glass" || cell.type === "sliding") continue;
     const hostedMembers = window.topology.members.filter(
       (member) => member.hostRegionId === cell.objectId
     );
@@ -2397,6 +2455,34 @@ function diagnoseOpeningManufacturing(
     }
   }
   return diagnostics;
+}
+
+/**
+ * Blocks sliding-cell production calculations until explicit product mapping
+ * data exists for its profile system, rail count and selected hardware set.
+ *
+ * The design geometry remains available in EBOM, while guessed sash deductions,
+ * glass sizes, roller quantities and track SKUs are intentionally omitted.
+ *
+ * @param window Formal window that may contain ordinary sliding cells.
+ * @returns One blocking diagnostic for each unmapped sliding cell.
+ * @since 0.11.11
+ */
+function diagnoseSlidingManufacturing(window: WindowUnit): ManufacturingDiagnostic[] {
+  return window.layout.cells.flatMap((cell) => cell.type === "sliding"
+    ? [{
+        severity: "error" as const,
+        code: "SLIDING_MANUFACTURING_MAPPING_REQUIRED" as const,
+        blocksConfirmation: true,
+        sourceWindowId: window.objectId,
+        sourceObjectIds: [window.objectId, cell.objectId],
+        path: `windows/${window.objectId}/cells/${cell.objectId}/manufacturingMapping`,
+        message:
+          `Sliding cell ${cell.objectId} has a valid design envelope, but no reviewed ` +
+          `profile-system and hardware mapping; sliding cut sizes, glass clearances, ` +
+          `track/roller materials and related operations were not emitted.`
+      }]
+    : []);
 }
 
 /**
@@ -3231,6 +3317,150 @@ function adaptHardwareMountingRule(
     machiningTemplateId
   };
 }
+/** Validates a versioned sliding rule without evaluating catalog-provided code. */
+function adaptSlidingManufacturingRule(
+  value: unknown,
+  path: string
+): SlidingManufacturingRuleSpec {
+  const record = requireRecord(value, path);
+  const provenanceRecord = requireRecord(record.provenance, `${path}/provenance`);
+  const provenance: SlidingRuleProvenance = {
+    status: requireEnumValue(provenanceRecord.status, ["reference-only", "factory-approved"], `${path}/provenance/status`),
+    sourceType: requireEnumValue(
+      provenanceRecord.sourceType,
+      ["supplier-document", "factory-engineering", "public-reference-simulation"],
+      `${path}/provenance/sourceType`
+    ),
+    sourceId: requireString(provenanceRecord.sourceId, `${path}/provenance/sourceId`),
+    sourceRevision: requireString(provenanceRecord.sourceRevision, `${path}/provenance/sourceRevision`)
+  };
+  if (provenance.status === "factory-approved" && provenance.sourceType === "public-reference-simulation") {
+    throw new Error(`${path}/provenance cannot mark a public reference simulation as factory-approved.`);
+  }
+
+  const panelCounts = requireUniqueIntegerArray(record.applicablePanelCounts, [2, 3, 4, 5, 6], `${path}/applicablePanelCounts`);
+  const trackCounts = requireUniqueIntegerArray(record.applicableTrackCounts, [2, 3, 4], `${path}/applicableTrackCounts`);
+  if (!Array.isArray(record.hardware) || record.hardware.length === 0) {
+    throw new Error(`${path}/hardware must be a non-empty array.`);
+  }
+
+  return {
+    ruleId: requireString(record.ruleId, `${path}/ruleId`),
+    ruleVersion: requireString(record.ruleVersion, `${path}/ruleVersion`),
+    profileSystemId: requireString(record.profileSystemId, `${path}/profileSystemId`),
+    hardwareSetId: requireString(record.hardwareSetId, `${path}/hardwareSetId`),
+    applicablePanelCounts: panelCounts as SlidingManufacturingRuleSpec["applicablePanelCounts"],
+    applicableTrackCounts: trackCounts as SlidingManufacturingRuleSpec["applicableTrackCounts"],
+    provenance,
+    frame: adaptSlidingProfileRule(record.frame, `${path}/frame`),
+    sash: adaptSlidingProfileRule(record.sash, `${path}/sash`),
+    rail: adaptSlidingProfileRule(record.rail, `${path}/rail`),
+    glass: adaptSlidingGlassRule(record.glass, `${path}/glass`),
+    hardware: record.hardware.map((item, index) => adaptSlidingHardwareRule(item, `${path}/hardware/${index}`))
+  };
+}
+
+function adaptSlidingProfileRule(value: unknown, path: string): SlidingProfileManufacturingRule {
+  const record = requireRecord(value, path);
+  return {
+    material: adaptSlidingMappedMaterial(record.material, `${path}/material`),
+    horizontal: adaptSlidingProfileOrientation(record.horizontal, `${path}/horizontal`),
+    vertical: adaptSlidingProfileOrientation(record.vertical, `${path}/vertical`)
+  };
+}
+
+function adaptSlidingProfileOrientation(value: unknown, path: string): SlidingProfileOrientationRule {
+  const record = requireRecord(value, path);
+  const quantity = requireNumber(record.quantity, `${path}/quantity`);
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new Error(`${path}/quantity must be a positive integer.`);
+  }
+  const angle = (candidate: unknown, field: string): number => {
+    const result = requireNumber(candidate, `${path}/${field}`);
+    if (result < 0 || result > 90) {
+      throw new Error(`${path}/${field} must be between 0 and 90 degrees.`);
+    }
+    return result;
+  };
+  return {
+    length: adaptSlidingDimensionFormula(record.length, `${path}/length`),
+    quantity,
+    cutLeftDeg: angle(record.cutLeftDeg, "cutLeftDeg"),
+    cutRightDeg: angle(record.cutRightDeg, "cutRightDeg")
+  };
+}
+
+function adaptSlidingGlassRule(value: unknown, path: string): SlidingManufacturingRuleSpec["glass"] {
+  const record = requireRecord(value, path);
+  return {
+    width: adaptSlidingDimensionFormula(record.width, `${path}/width`),
+    height: adaptSlidingDimensionFormula(record.height, `${path}/height`)
+  };
+}
+
+function adaptSlidingDimensionFormula(value: unknown, path: string): SlidingDimensionFormula {
+  const record = requireRecord(value, path);
+  const scale = requireNumber(record.scale, `${path}/scale`);
+  if (scale <= 0) throw new Error(`${path}/scale must be greater than 0.`);
+  return {
+    source: requireEnumValue(
+      record.source,
+      ["window-width", "window-height", "cell-width", "cell-height", "panel-width", "panel-height", "designed-overlap"],
+      `${path}/source`
+    ),
+    scale,
+    offsetMm: requireNumber(record.offsetMm, `${path}/offsetMm`)
+  };
+}
+
+function adaptSlidingMappedMaterial(value: unknown, path: string): SlidingMappedMaterial {
+  const record = requireRecord(value, path);
+  return {
+    materialCode: requireString(record.materialCode, `${path}/materialCode`),
+    name: requireString(record.name, `${path}/name`),
+    specification: requireString(record.specification, `${path}/specification`),
+    material: requireString(record.material, `${path}/material`),
+    color: requireString(record.color, `${path}/color`)
+  };
+}
+
+function adaptSlidingHardwareRule(value: unknown, path: string): SlidingHardwareDemandRule {
+  const record = requireRecord(value, path);
+  const quantityPerBasis = requireNumber(record.quantityPerBasis, `${path}/quantityPerBasis`);
+  if (quantityPerBasis <= 0) throw new Error(`${path}/quantityPerBasis must be greater than 0.`);
+  return {
+    material: adaptSlidingMappedMaterial(record.material, `${path}/material`),
+    quantityBasis: requireEnumValue(
+      record.quantityBasis,
+      ["assembly", "all-panels", "movable-panels", "tracks"],
+      `${path}/quantityBasis`
+    ),
+    quantityPerBasis,
+    unit: requireEnumValue(record.unit, ["pcs", "set"], `${path}/unit`)
+  };
+}
+
+function requireUniqueIntegerArray<T extends number>(value: unknown, allowed: readonly T[], path: string): T[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${path} must be a non-empty array.`);
+  }
+  const values = value.map((candidate, index) => {
+    const result = requireNumber(candidate, `${path}/${index}`);
+    if (!Number.isInteger(result) || !allowed.includes(result as T)) {
+      throw new Error(`${path}/${index} must be one of ${allowed.join(", ")}.`);
+    }
+    return result as T;
+  });
+  if (new Set(values).size !== values.length) throw new Error(`${path} must not contain duplicates.`);
+  return values;
+}
+
+function requireEnumValue<T extends string>(value: unknown, allowed: readonly T[], path: string): T {
+  if (typeof value !== "string" || !allowed.includes(value as T)) {
+    throw new Error(`${path} must be one of ${allowed.join(", ")}.`);
+  }
+  return value as T;
+}
 import type {
   DesignDocument,
   DesignObjectId,
@@ -3290,5 +3520,12 @@ import type {
   ProfileCutFeature,
   ProfileSystemSpec,
   SealPathFeature,
-  SurfaceTreatmentFeature
+  SurfaceTreatmentFeature,
+  SlidingDimensionFormula,
+  SlidingHardwareDemandRule,
+  SlidingManufacturingRuleSpec,
+  SlidingMappedMaterial,
+  SlidingProfileManufacturingRule,
+  SlidingProfileOrientationRule,
+  SlidingRuleProvenance
 } from "@doormes/manufacturing-model";

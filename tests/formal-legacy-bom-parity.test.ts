@@ -48,6 +48,39 @@ function readFixture(name: string): unknown {
 }
 
 describe("formal/legacy window BOM parity", () => {
+  it("retains sliding EBOM and blocks manufacturing when no reviewed mapping exists", () => {
+    const source = parseLegacyV2Design(readFixture("rectangular-fixed.input.json"));
+    const session = new DesignSession(createEmptyDesign("DESIGN-SLIDING-BOM-GATE"));
+    session.execute(createRectangularWindowCommand({
+      commandId: "CREATE-SLIDING-BOM-GATE",
+      windowId: "WIN-SLIDING-BOM-GATE",
+      mark: "S1",
+      widthMm: 1800,
+      heightMm: 1500,
+      cellId: "CELL-SLIDING-BOM-GATE"
+    }));
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: "SET-SLIDING-BOM-GATE",
+      windowId: "WIN-SLIDING-BOM-GATE",
+      cellId: "CELL-SLIDING-BOM-GATE",
+      cellType: "sliding",
+      opening: "slide_right"
+    }));
+
+    const result = calculateFormalBom(
+      session.document,
+      adaptLegacyManufacturingCatalog(source.catalog)
+    );
+
+    expect(result.ebom.some((item) => item.type === "sliding")).toBe(true);
+    expect(result.features).toEqual([]);
+    expect(result.mbom.lines).toEqual([]);
+    expect(result.confirmation.allowed).toBe(false);
+    expect(result.confirmation.blockingDiagnosticCodes).toContain(
+      "SLIDING_MANUFACTURING_MAPPING_REQUIRED"
+    );
+  });
+
   it("calculates preview demand but blocks production for a public-reference template", () => {
     const source = parseLegacyV2Design(readFixture("rectangular-fixed.input.json"));
     const session = new DesignSession(createEmptyDesign("DESIGN-PUBLIC-TEMPLATE"));

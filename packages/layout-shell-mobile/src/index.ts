@@ -2,7 +2,10 @@ import {
   nextAvailableWindowSequence,
   planConnectedWindowCreation,
   listEngineeringJointCatalogSelections,
+  listNeutralSlidingWindowOptions,
   listZcsungSimulationWindowOptions,
+  NEUTRAL_ORDINARY_SLIDING_TEMPLATE_ID,
+  planNeutralSlidingWindowCreation,
   planZcsungSimulationWindowCreation,
   requireEngineeringJointCatalogSelection,
   resolveSelectedOwningWindowId,
@@ -173,7 +176,12 @@ export function mountMobileLayoutShell(
     throw new Error("Mobile layout shell could not resolve its required regions.");
   }
 
-  const productTemplateOptions = listZcsungSimulationWindowOptions();
+  const neutralSlidingOptions = listNeutralSlidingWindowOptions();
+  const zcsungProductTemplateOptions = listZcsungSimulationWindowOptions();
+  const productTemplateOptions = [
+    ...neutralSlidingOptions,
+    ...zcsungProductTemplateOptions
+  ];
   for (const template of productTemplateOptions) {
     const option = document.createElement("option");
     option.value = template.templateId;
@@ -192,7 +200,17 @@ export function mountMobileLayoutShell(
    * @modified 2026-09-22 - Added mobile target-product template selection.
    */
   const synchronizeProductTemplate = (): void => {
-    const selected = productTemplateOptions.find(
+    const neutralSliding = neutralSlidingOptions.find(
+      (template) => template.templateId === productTemplateControl.value
+    );
+    if (neutralSliding) {
+      widthControl.value = String(neutralSliding.defaultWidthMm);
+      heightControl.value = String(neutralSliding.defaultHeightMm);
+      productTemplateNote.textContent =
+        "中性两扇两轨设计模板，可改尺寸与搭接；供应商轨槽、滚轮和加工模板尚未审核。";
+      return;
+    }
+    const selected = zcsungProductTemplateOptions.find(
       (template) => template.templateId === productTemplateControl.value
     );
     if (!selected) {
@@ -261,7 +279,17 @@ export function mountMobileLayoutShell(
     const transactionId = `CMD-TOUCH-${sequence}`;
     try {
       const selectedTemplateId = String(values.get("productTemplate") ?? "").trim();
-      const templatePlan = selectedTemplateId
+      const neutralSlidingPlan = selectedTemplateId === NEUTRAL_ORDINARY_SLIDING_TEMPLATE_ID
+        ? planNeutralSlidingWindowCreation({
+            templateId: selectedTemplateId,
+            commandIdPrefix: `${transactionId}:TEMPLATE`,
+            windowId: `WIN-${sequence}`,
+            instanceMark: `C${sequence}`,
+            widthMm: Number(values.get("width")),
+            heightMm: Number(values.get("height"))
+          })
+        : undefined;
+      const templatePlan = selectedTemplateId && !neutralSlidingPlan
         ? planZcsungSimulationWindowCreation({
             templateId: selectedTemplateId,
             commandIdPrefix: `${transactionId}:TEMPLATE`,
@@ -271,7 +299,8 @@ export function mountMobileLayoutShell(
             heightMm: Number(values.get("height"))
           })
         : undefined;
-      const createCommand = templatePlan?.createCommand ?? touchCreateWindowCommand({
+      const creationPlan = neutralSlidingPlan ?? templatePlan;
+      const createCommand = creationPlan?.createCommand ?? touchCreateWindowCommand({
           commandId: `CMD-TOUCH-${sequence}`,
           windowId: `WIN-${sequence}`,
           mark: `C${sequence}`,
@@ -280,14 +309,16 @@ export function mountMobileLayoutShell(
         });
       const direction = String(values.get("creationMode") ?? "independent");
       if (direction === "independent") {
-        if (templatePlan) {
-          session.executeTransaction(templatePlan.commands, transactionId);
+        if (creationPlan) {
+          session.executeTransaction(creationPlan.commands, transactionId);
         } else {
           session.execute(createCommand);
         }
         selection.select(createCommand.windowId, "system");
-        creationStatus.value = templatePlan
-          ? `已创建 ${templatePlan.productName} 公开参考模拟；当前禁止投产。`
+        creationStatus.value = neutralSlidingPlan
+          ? "已创建中性普通推拉窗（两扇两轨）；供应商截面与推拉五金目录待审核。"
+          : templatePlan
+            ? `已创建 ${templatePlan.productName} 公开参考模拟；当前禁止投产。`
           : `已创建 ${createCommand.mark}；下一窗默认连接其右侧。`;
         creationStatus.dataset.state = "success";
         directionControl.value = "right";
@@ -317,7 +348,7 @@ export function mountMobileLayoutShell(
             : "clockwise" as const
         } : {}),
         transactionId,
-        afterCreateCommands: templatePlan ? [templatePlan.openingCommand] : undefined
+        afterCreateCommands: creationPlan ? [creationPlan.openingCommand] : undefined
       });
       session.executeTransaction(plan.commands, transactionId);
       selection.select(plan.newWindowId, "system");

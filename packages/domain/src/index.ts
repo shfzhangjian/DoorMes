@@ -11,6 +11,8 @@ import type {
   DesignDocument,
   DesignObjectId,
   DrawingTextLabel,
+  FactoryDrawingAnnotationLayoutOverride,
+  FactoryDrawingElementOptions,
   EqualizeWindowGridCommand,
   EngineeringJoint,
   FabricationAssembly,
@@ -25,6 +27,9 @@ import type {
   RemoveWindowTopologyMemberCommand,
   ResizeWindowCommand,
   SetWindowCellOpeningCommand,
+  SlidingOpeningAssembly,
+  SlidingOpeningPanel,
+  SlidingTravelDirection,
   SplitWindowGridCommand,
   SurroundCatalogSelectionSnapshot,
   TopHungOpeningAssembly,
@@ -40,6 +45,8 @@ import type {
   UpdateWindowVisualConfigurationCommand,
   UpdateWindowTopologyMemberCommand,
   UpdateDrawingTextLabelCommand,
+  UpdateFactoryDrawingAnnotationLayoutCommand,
+  UpdateFactoryDrawingElementOptionsCommand,
   WindowGridLayout,
   WindowDesignComponentRemarks,
   WindowInstallation,
@@ -212,7 +219,9 @@ export function createEmptyDesign(designId: string): DesignDocument {
     revision: 0,
     windows: [],
     assemblies: [],
-    drawingTextLabels: []
+    drawingTextLabels: [],
+    factoryDrawingElementOptions: [],
+    factoryDrawingAnnotationLayouts: []
   };
 }
 
@@ -242,6 +251,10 @@ export function applyDesignCommand(
       return updateDrawingTextLabel(document, command);
     case "drawing-text-label.delete":
       return deleteDrawingTextLabel(document, command);
+    case "factory-drawing.update-element-options":
+      return updateFactoryDrawingElementOptions(document, command);
+    case "factory-drawing.update-annotation-layout":
+      return updateFactoryDrawingAnnotationLayout(document, command);
     case "assembly.create":
       return createFabricationAssembly(document, command);
     case "assembly.add-instance":
@@ -293,6 +306,126 @@ export function applyDesignCommand(
     case "window.topology-member-remove":
       return removeWindowTopologyMember(document, command);
   }
+}
+
+/** Stores or clears one locked paper-space callout position. */
+function updateFactoryDrawingAnnotationLayout(
+  document: DesignDocument,
+  command: UpdateFactoryDrawingAnnotationLayoutCommand
+): CommandExecutionResult {
+  const annotationId = command.layout.annotationId.trim();
+  const { x, y } = command.layout.offsetPaperMm;
+  if (!annotationId) throw new Error("Factory drawing annotation IDs must not be empty.");
+  if (!Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > 1000 || Math.abs(y) > 1000) {
+    throw new Error("Factory drawing annotation offsets must be finite paper millimetres.");
+  }
+  const layout: FactoryDrawingAnnotationLayoutOverride = {
+    annotationId,
+    offsetPaperMm: { x, y },
+    locked: command.layout.locked === true
+  };
+  const existing = document.factoryDrawingAnnotationLayouts ?? [];
+  const withoutTarget = existing.filter((item) => item.annotationId !== annotationId);
+  const next = layout.locked ? [...withoutTarget, layout] : withoutTarget;
+  if (
+    existing.length === next.length &&
+    existing.every((item, index) => {
+      const candidate = next[index];
+      return candidate?.annotationId === item.annotationId &&
+        candidate.locked === item.locked &&
+        candidate.offsetPaperMm.x === item.offsetPaperMm.x &&
+        candidate.offsetPaperMm.y === item.offsetPaperMm.y;
+    })
+  ) {
+    return {
+      document,
+      changes: {
+        commandId: command.commandId,
+        createdObjectIds: [], updatedObjectIds: [], removedObjectIds: []
+      }
+    };
+  }
+  return {
+    document: {
+      ...document,
+      revision: document.revision + 1,
+      factoryDrawingAnnotationLayouts: next
+    },
+    changes: {
+      commandId: command.commandId,
+      createdObjectIds: [], updatedObjectIds: [], removedObjectIds: []
+    }
+  };
+}
+
+/** Stores one independent pair of factory-output flags as an undoable edit. */
+function updateFactoryDrawingElementOptions(
+  document: DesignDocument,
+  command: UpdateFactoryDrawingElementOptionsCommand
+): CommandExecutionResult {
+  const normalizedNumber = command.options.factoryDrawingNumber?.trim().toUpperCase() || undefined;
+  if (normalizedNumber && (
+    normalizedNumber.length > 32 ||
+    !/^[A-Z0-9][A-Z0-9._-]*$/.test(normalizedNumber)
+  )) {
+    throw new Error(
+      "Factory drawing numbers must contain 1-32 letters, digits, dots, underscores or hyphens."
+    );
+  }
+  const duplicate = (document.factoryDrawingElementOptions ?? []).find((item) =>
+    item.objectId !== command.options.objectId &&
+    item.factoryDrawingNumber?.toUpperCase() === normalizedNumber
+  );
+  if (normalizedNumber && duplicate) {
+    throw new Error(
+      `Factory drawing number ${normalizedNumber} is already used by ${duplicate.objectId}.`
+    );
+  }
+  const options: FactoryDrawingElementOptions = {
+    objectId: toDesignObjectId(command.options.objectId),
+    ...(normalizedNumber ? { factoryDrawingNumber: normalizedNumber } : {}),
+    showDimensions: command.options.showDimensions === true,
+    showInComponentTable: command.options.showInComponentTable === true
+  };
+  const existing = document.factoryDrawingElementOptions ?? [];
+  const withoutTarget = existing.filter((item) => item.objectId !== options.objectId);
+  // `true/true` is the compact default and therefore needs no persisted override.
+  const next = options.showDimensions && options.showInComponentTable && !normalizedNumber
+    ? withoutTarget
+    : [...withoutTarget, options];
+  if (
+    existing.length === next.length &&
+    existing.every((item, index) => {
+      const candidate = next[index];
+      return candidate?.objectId === item.objectId &&
+        candidate.factoryDrawingNumber === item.factoryDrawingNumber &&
+        candidate.showDimensions === item.showDimensions &&
+        candidate.showInComponentTable === item.showInComponentTable;
+    })
+  ) {
+    return {
+      document,
+      changes: {
+        commandId: command.commandId,
+        createdObjectIds: [],
+        updatedObjectIds: [],
+        removedObjectIds: []
+      }
+    };
+  }
+  return {
+    document: {
+      ...document,
+      revision: document.revision + 1,
+      factoryDrawingElementOptions: next
+    },
+    changes: {
+      commandId: command.commandId,
+      createdObjectIds: [],
+      updatedObjectIds: [options.objectId],
+      removedObjectIds: []
+    }
+  };
 }
 
 /** Returns whether an object can own one free drawing annotation. */
@@ -1147,6 +1280,129 @@ export function createTopHungOpeningAssembly(
       operationOrder: 0
     }],
     operationSequence: ["P1"]
+  };
+}
+
+/** Explicit panel allocation accepted by the canonical sliding normalizer. */
+export interface SlidingPanelAllocation {
+  /** Zero-based rail index from exterior to interior. */
+  readonly trackIndex: number;
+  readonly movable: boolean;
+  /** Required for movable panels and forbidden for passive panels. */
+  readonly travelDirection?: SlidingTravelDirection;
+}
+
+/**
+ * Creates and validates a rail-based sliding opening assembly.
+ *
+ * Algorithm: preserve the caller's left-to-right closed-position order, assign
+ * stable `P1..Pn` panel IDs, derive active count and operation order, require
+ * every declared rail to be used, and infer the stack side from the active
+ * panels' travel directions. No travel distance is guessed here: product/profile
+ * geometry resolves the physical millimetres before the shared kinematics layer
+ * creates its translation transform.
+ *
+ * This contract is intentionally available before the UI exposes a production
+ * sliding template. It lets 2D, plan, 3D and BOM adapters migrate against one
+ * validated source instead of each inventing a different panel convention.
+ *
+ * @param input Explicit panels, rail count, face overlap and preview target.
+ * @returns Canonical sliding assembly with deterministic panel identities.
+ * @throws When counts, rail allocation, directions or numeric values are invalid.
+ * @example Two tracks with `[{ movable: true, travelDirection: "right" }, { movable: false }]`.
+ * @since 0.11.2
+ */
+export function createSlidingOpeningAssembly(input: Readonly<{
+  trackCount: 2 | 3 | 4;
+  overlapMm: number;
+  panels: readonly SlidingPanelAllocation[];
+  openPercent?: number;
+}>): SlidingOpeningAssembly {
+  const panelCount = input.panels.length;
+  if (!Number.isInteger(input.trackCount) || input.trackCount < 2 || input.trackCount > 4) {
+    throw new RangeError("Sliding opening assemblies require between 2 and 4 tracks.");
+  }
+  if (panelCount < 2 || panelCount > 6) {
+    throw new RangeError("Sliding opening assemblies require between 2 and 6 panels.");
+  }
+  if (input.trackCount > panelCount) {
+    throw new RangeError("Sliding track count cannot exceed panel count.");
+  }
+  if (!Number.isFinite(input.overlapMm) || input.overlapMm < 0) {
+    throw new RangeError("Sliding overlap must be a non-negative finite millimetre value.");
+  }
+  const openPercent = input.openPercent ?? 80;
+  if (!Number.isFinite(openPercent) || openPercent < 0 || openPercent > 100) {
+    throw new RangeError("Sliding open percent must be between 0 and 100.");
+  }
+
+  const usedTracks = new Set<number>();
+  let operationOrder = 0;
+  const panels: SlidingOpeningPanel[] = input.panels.map((panel, closedPositionIndex) => {
+    if (
+      !Number.isInteger(panel.trackIndex) ||
+      panel.trackIndex < 0 ||
+      panel.trackIndex >= input.trackCount
+    ) {
+      throw new RangeError("Sliding panel track index must reference a declared rail.");
+    }
+    if (panel.movable && panel.travelDirection === undefined) {
+      throw new Error("Movable sliding panels require a travel direction.");
+    }
+    if (!panel.movable && panel.travelDirection !== undefined) {
+      throw new Error("Passive sliding panels cannot carry a travel direction.");
+    }
+    usedTracks.add(panel.trackIndex);
+    const id = `P${closedPositionIndex + 1}`;
+    if (!panel.movable) {
+      return {
+        id,
+        label: `${closedPositionIndex + 1}号扇`,
+        role: "passive" as const,
+        movable: false,
+        trackIndex: panel.trackIndex,
+        closedPositionIndex
+      };
+    }
+    const normalized = {
+      id,
+      label: `${closedPositionIndex + 1}号扇`,
+      role: "active" as const,
+      movable: true,
+      trackIndex: panel.trackIndex,
+      closedPositionIndex,
+      operationOrder,
+      travelDirection: panel.travelDirection
+    };
+    operationOrder += 1;
+    return normalized;
+  });
+  if (usedTracks.size !== input.trackCount) {
+    throw new Error("Every declared sliding rail must contain at least one panel.");
+  }
+  if (operationOrder < 1 || operationOrder > 5) {
+    throw new RangeError("Sliding opening assemblies require between 1 and 5 active panels.");
+  }
+  const travelDirections = new Set(
+    panels.flatMap((panel) => panel.travelDirection ? [panel.travelDirection] : [])
+  );
+  const stackSide = travelDirections.size > 1
+    ? "both"
+    : travelDirections.has("left")
+      ? "left"
+      : "right";
+  return {
+    mechanism: "sliding",
+    panelCount: panelCount as SlidingOpeningAssembly["panelCount"],
+    activePanelCount: operationOrder as SlidingOpeningAssembly["activePanelCount"],
+    trackCount: input.trackCount,
+    stackSide,
+    overlapMm: input.overlapMm,
+    openPercent,
+    panels,
+    operationSequence: panels
+      .filter((panel) => panel.movable)
+      .map((panel) => panel.id)
   };
 }
 
@@ -2017,7 +2273,8 @@ function setWindowCellOpening(
   const current = window.layout.cells[cellIndex];
   if (cellIndex < 0 || !current) throw new Error(`Cell ${command.cellId} does not exist.`);
   const retainedMaximumAngles =
-    current.type === command.cellType && current.type !== "fixed_glass"
+    current.type === command.cellType &&
+      (current.type === "turn_tilt" || current.type === "top_hung")
       ? current.openingAssembly.maximumAngleDegreesByMode
       : undefined;
   const maximumAngleDegreesByMode =
@@ -2029,6 +2286,34 @@ function setWindowCellOpening(
         type: "fixed_glass" as const,
         opening: "fixed" as const
       }
+    : command.cellType === "sliding"
+      ? (() => {
+          if (command.opening !== "slide_left" && command.opening !== "slide_right") {
+            throw new Error("Sliding cells require slide_left or slide_right opening direction.");
+          }
+          const defaultPanels: readonly SlidingPanelAllocation[] = command.opening === "slide_right"
+            ? [
+                { trackIndex: 0, movable: true, travelDirection: "right" },
+                { trackIndex: 1, movable: false }
+              ]
+            : [
+                { trackIndex: 1, movable: false },
+                { trackIndex: 0, movable: true, travelDirection: "left" }
+              ];
+          const configuration = command.slidingConfiguration;
+          return {
+            objectId: current.objectId,
+            type: "sliding" as const,
+            opening: command.opening,
+            openingAssembly: createSlidingOpeningAssembly({
+              trackCount: configuration?.trackCount ?? 2,
+              overlapMm: configuration?.overlapMm ?? 35,
+              panels: configuration?.panels ?? defaultPanels,
+              openPercent: configuration?.openPercent
+            }),
+            hardwareSetId: command.hardwareSetId?.trim() || "HW-SLIDE-STD"
+          };
+        })()
     : command.cellType === "top_hung"
       ? (() => {
           if (command.opening !== "top_in" && command.opening !== "top_out") {

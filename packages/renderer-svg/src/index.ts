@@ -36,6 +36,7 @@ import {
 import {
   createOpeningMechanismMotion,
   createOpeningPanelKey,
+  createSlidingOpeningMotion,
   resolveOpeningConnectionLayout,
   resolveOpeningMaximumAngleDegrees,
   resolveOpeningPose,
@@ -142,6 +143,8 @@ const ENGINEERING_LINE_STYLE = `<style class="design-svg__engineering-line-style
 }
 .design-svg--engineering-line .design-window__glass,
 .design-svg--engineering-line .design-window__opening-glass,
+.design-svg--engineering-line .design-window__sliding-glass,
+.design-svg--engineering-line .design-plan-view__sliding-panel,
 .design-svg--engineering-line .design-plan-view__wall,
 .design-svg--engineering-line .design-plan-view__surround,
 .design-svg--engineering-line .design-plan-view__frame,
@@ -179,12 +182,28 @@ const ENGINEERING_LINE_STYLE = `<style class="design-svg__engineering-line-style
   stroke-opacity: 0 !important;
   pointer-events: stroke;
 }
+.design-svg--engineering-line .design-window__sliding-sash-outline {
+  fill: none !important;
+  stroke: transparent !important;
+  stroke-opacity: 0 !important;
+  pointer-events: stroke;
+}
 .design-svg--engineering-line .design-window__opening-sash-linework {
   display: inline !important;
   fill: none !important;
   stroke: #111827 !important;
   stroke-width: 1.35 !important;
   vector-effect: non-scaling-stroke;
+}
+.design-svg--engineering-line .design-window__sliding-sash-linework {
+  fill: none !important;
+  stroke: #111827 !important;
+  stroke-width: 1.35 !important;
+  vector-effect: non-scaling-stroke;
+}
+.design-svg--engineering-line .design-window__sliding-direction,
+.design-svg--engineering-line .design-plan-view__sliding-track {
+  stroke: #111827 !important;
 }
 .design-svg--engineering-line .design-window__opening-handle,
 .design-svg--engineering-line .design-window__opening-flying-mullion,
@@ -306,6 +325,20 @@ function escapeXml(value: string): string {
 
 type ResolvedOpening = ReturnType<typeof resolveWindowGeometry>["openings"][number];
 type ResolvedOpeningHardware = ReturnType<typeof resolveWindowGeometry>["hardware"][number];
+type ResolvedSlidingPanel = ReturnType<typeof resolveWindowGeometry>["slidingPanels"][number];
+
+/** Resolves one sliding panel's runtime X offset without mutating design geometry. */
+function resolveSlidingPanelOffsetMm(
+  panel: ResolvedSlidingPanel,
+  progressPercent: number
+): number {
+  if (!panel.movable || !panel.travelDirection || panel.maximumTravelMm <= 0) return 0;
+  return resolveOpeningPose(createSlidingOpeningMotion({
+    motionId: `${createOpeningPanelKey(panel.sourceObjectId, panel.panelId)}:sliding`,
+    direction: panel.travelDirection,
+    travelMm: panel.maximumTravelMm
+  }), progressPercent).translationMm.x;
+}
 
 /** Resolves the persisted product limit or the mechanism's versioned default. */
 function resolveRenderedOpeningMaximumAngleDegrees(
@@ -1283,7 +1316,7 @@ function renderDimensionLine(input: {
  */
 function renderSelectedProfileAnnotation(input: Readonly<{
   objectId: string;
-  roleKind: "sash" | "frame" | "flying-mullion" | "fixed-mullion" |
+  roleKind: "sash" | "sliding-sash" | "frame" | "flying-mullion" | "fixed-mullion" |
     "grid-mullion" | "topology-mullion";
   roleLabel: string;
   presetId: string;
@@ -1587,6 +1620,10 @@ function windowOwnsRenderedObjectId(window: WindowUnit, objectId: string | undef
     ...geometry.meetingMullions,
     ...geometry.openings.map((opening) => ({
       objectId: createOpeningPanelKey(opening.objectId, opening.panelId)
+    })),
+    ...geometry.slidingTracks,
+    ...geometry.slidingPanels.map((panel) => ({
+      objectId: createOpeningPanelKey(panel.sourceObjectId, panel.panelId)
     })),
     ...geometry.hardware.map((mount) => ({ objectId: mount.hardwareId }))
   ].some((item) => item.objectId === objectId);
@@ -2294,6 +2331,44 @@ function renderWindow(
     ].join("");
   });
   const foregroundOpenings: string[] = [];
+  const slidingPanels = [...geometry.slidingPanels]
+    // Interior rails are painted first so the exterior rail remains visually in front.
+    .sort((leftPanel, rightPanel) => rightPanel.trackIndex - leftPanel.trackIndex)
+    .map((panel) => {
+      const previewKey = createOpeningPanelKey(panel.sourceObjectId, panel.panelId);
+      const progressPercent = showOpeningState
+        ? openingProgressPercentByPanelKey?.[previewKey] ?? panel.openPercent
+        : 0;
+      const offsetXMm = resolveSlidingPanelOffsetMm(panel, progressPercent);
+      const panelX = panel.xMm + offsetXMm;
+      const faceMm = Math.min(window.sashFaceMm, panel.widthMm / 2, panel.heightMm / 2);
+      const outerX = panelX * scale;
+      const outerY = panel.yMm * scale;
+      const panelWidth = panel.widthMm * scale;
+      const panelHeight = panel.heightMm * scale;
+      const innerX = (panelX + faceMm) * scale;
+      const innerY = (panel.yMm + faceMm) * scale;
+      const innerWidth = Math.max(0, (panel.widthMm - faceMm * 2) * scale);
+      const innerHeight = Math.max(0, (panel.heightMm - faceMm * 2) * scale);
+      const direction = panel.travelDirection;
+      const arrow = !showOpeningState || !direction
+        ? ""
+        : (() => {
+            const centerY = (panel.yMm + panel.heightMm / 2) * scale;
+            const startX = (panelX + panel.widthMm * (direction === "left" ? 0.62 : 0.38)) * scale;
+            const endX = (panelX + panel.widthMm * (direction === "left" ? 0.38 : 0.62)) * scale;
+            const sign = direction === "left" ? -1 : 1;
+            return `<path class="design-window__sliding-direction" d="M ${formatCoordinate(startX)} ${formatCoordinate(centerY)} L ${formatCoordinate(endX)} ${formatCoordinate(centerY)} M ${formatCoordinate(endX)} ${formatCoordinate(centerY)} L ${formatCoordinate(endX - sign * 10)} ${formatCoordinate(centerY - 7)} M ${formatCoordinate(endX)} ${formatCoordinate(centerY)} L ${formatCoordinate(endX - sign * 10)} ${formatCoordinate(centerY + 7)}" fill="none" stroke="#0755b5" stroke-width="2" pointer-events="none" />`;
+          })();
+      return [
+        `<g class="design-window__sliding-panel" data-object-id="${escapeXml(previewKey)}"${selectedAttribute(previewKey)} data-opening-object-id="${escapeXml(panel.sourceObjectId)}" data-window-id="${id}" data-source-component-id="${escapeXml(panel.sourceComponentId)}" data-mechanism="sliding" data-panel-id="${escapeXml(panel.panelId)}" data-panel-role="${panel.role}" data-track-index="${panel.trackIndex}" data-closed-x-mm="${formatCoordinate(panel.xMm)}" data-panel-pitch-mm="${formatCoordinate(panel.panelPitchMm)}" data-maximum-travel-mm="${formatCoordinate(panel.maximumTravelMm)}" data-preview-progress="${formatCoordinate(progressPercent)}" data-preview-translation-x-mm="${formatCoordinate(offsetXMm)}"${direction ? ` data-travel-direction="${direction}"` : ""}>`,
+        `<rect class="design-window__sliding-glass" x="${formatCoordinate(innerX)}" y="${formatCoordinate(innerY)}" width="${formatCoordinate(innerWidth)}" height="${formatCoordinate(innerHeight)}" fill="${glassStyle.cssColor}" fill-opacity="${formatCoordinate(glassStyle.opacity)}" stroke="#7aa7bd" />`,
+        `<rect class="design-window__sliding-sash-outline" data-profile-face-mm="${formatCoordinate(faceMm)}" x="${formatCoordinate((panelX + faceMm / 2) * scale)}" y="${formatCoordinate((panel.yMm + faceMm / 2) * scale)}" width="${formatCoordinate(Math.max(0, (panel.widthMm - faceMm) * scale))}" height="${formatCoordinate(Math.max(0, (panel.heightMm - faceMm) * scale))}" fill="none" stroke="${sashOutside.cssColor}" stroke-opacity="${formatCoordinate(sashOutside.opacity)}" stroke-width="${formatCoordinate(Math.max(3, faceMm * scale))}" />`,
+        `<rect class="design-window__sliding-sash-linework" x="${formatCoordinate(outerX)}" y="${formatCoordinate(outerY)}" width="${formatCoordinate(panelWidth)}" height="${formatCoordinate(panelHeight)}" fill="none" stroke="#334155" stroke-width="1.25" pointer-events="none" />`,
+        arrow,
+        "</g>"
+      ].join("");
+    });
   const openings = geometry.openings.map((opening) => {
     const halfFace = opening.sashFaceMm / 2;
     const left = opening.xMm + halfFace;
@@ -2915,6 +2990,11 @@ function renderWindow(
         (opening) => createOpeningPanelKey(opening.objectId, opening.panelId) === selectedObjectId
       )
     : undefined;
+  const selectedSlidingPanel = selectedObjectId
+    ? geometry.slidingPanels.find(
+        (panel) => createOpeningPanelKey(panel.sourceObjectId, panel.panelId) === selectedObjectId
+      )
+    : undefined;
   const selectedFrame = selectedObjectId
     ? geometry.frames.find((frame) => frame.objectId === selectedObjectId)
     : undefined;
@@ -2943,6 +3023,23 @@ function renderWindow(
           calloutY: profileCalloutY,
           windowWidth: width
         })
+      : selectedSlidingPanel
+        ? renderSelectedProfileAnnotation({
+            objectId: selectedObjectId,
+            roleKind: "sliding-sash",
+            roleLabel: "推拉扇框型材",
+            presetId: section.presetId,
+            faceWidthMm: window.sashFaceMm,
+            depthMm: section.sashDepthMm,
+            orientation: "horizontal",
+            xMm: selectedSlidingPanel.xMm,
+            yMm: selectedSlidingPanel.yMm,
+            widthMm: selectedSlidingPanel.widthMm,
+            heightMm: window.sashFaceMm,
+            scale,
+            calloutY: profileCalloutY,
+            windowWidth: width
+          })
       : selectedFrame
         ? renderSelectedProfileAnnotation({
             objectId: selectedObjectId,
@@ -3062,6 +3159,32 @@ function renderWindow(
         ].join("");
       }).join("")
     : "";
+  const planSliding = geometry.slidingTracks.length === 0
+    ? ""
+    : [
+        ...geometry.slidingTracks.map((track) => {
+          const trackY = planBaselineY - track.centerOffsetZMm * scale;
+          return `<line class="design-plan-view__sliding-track" data-object-id="${escapeXml(track.objectId)}"${selectedAttribute(track.objectId)} data-source-component-id="${escapeXml(track.sourceComponentId)}" data-track-index="${track.trackIndex}" x1="${formatCoordinate(track.startXMm * scale)}" y1="${formatCoordinate(trackY)}" x2="${formatCoordinate(track.endXMm * scale)}" y2="${formatCoordinate(trackY)}" stroke="#64748b" stroke-width="1" stroke-dasharray="4 3" />`;
+        }),
+        ...[...geometry.slidingPanels]
+          .sort((leftPanel, rightPanel) => rightPanel.trackIndex - leftPanel.trackIndex)
+          .map((panel) => {
+            const previewKey = createOpeningPanelKey(panel.sourceObjectId, panel.panelId);
+            const progressPercent = showOpeningState
+              ? openingProgressPercentByPanelKey?.[previewKey] ?? panel.openPercent
+              : 0;
+            const offsetXMm = resolveSlidingPanelOffsetMm(panel, progressPercent);
+            const track = geometry.slidingTracks.find(
+              (candidate) => candidate.sourceObjectId === panel.sourceObjectId &&
+                candidate.trackIndex === panel.trackIndex
+            );
+            if (!track) return "";
+            const panelDepthMm = track.allocatedDepthMm;
+            const panelY = planBaselineY -
+              (panel.trackCenterOffsetZMm + panelDepthMm / 2) * scale;
+            return `<rect class="design-plan-view__sliding-panel" data-object-id="${escapeXml(previewKey)}"${selectedAttribute(previewKey)} data-opening-object-id="${escapeXml(panel.sourceObjectId)}" data-source-component-id="${escapeXml(panel.sourceComponentId)}" data-track-index="${panel.trackIndex}" data-preview-progress="${formatCoordinate(progressPercent)}" data-preview-translation-x-mm="${formatCoordinate(offsetXMm)}" x="${formatCoordinate((panel.xMm + offsetXMm) * scale)}" y="${formatCoordinate(panelY)}" width="${formatCoordinate(panel.widthMm * scale)}" height="${formatCoordinate(panelDepthMm * scale)}" fill="${sashOutside.cssColor}" fill-opacity="0.32" stroke="${sashOutside.cssColor}" stroke-width="1.25" />`;
+          })
+      ].join("");
   /*
    * Installation mode/alignment remain structured model properties and are
    * editable in the inspector. They are intentionally not serialized as free
@@ -3112,7 +3235,7 @@ function renderWindow(
     ? ""
     : `<text class="design-plan-view__shared-label" x="${width / 2}" y="${formatCoordinate(planHeight + 18)}" text-anchor="middle">俯视图</text>`;
   const plan = showPlanView
-    ? `<g class="design-plan-view" data-section-preset-id="${escapeXml(section.presetId)}" data-plan-frame-depth-mm="${formatCoordinate(section.frameDepthMm)}" data-plan-sash-depth-mm="${formatCoordinate(section.sashDepthMm)}" data-plan-wall-thickness-mm="${formatCoordinate(installationSection.wallThicknessMm)}" data-plan-wall-center-z-mm="${formatCoordinate(installationSection.wallCenterZMm)}" data-plan-mounting-mode="${installation.surround.mountingMode}" data-plan-frame-alignment="${installation.surround.frameAlignment}" data-plan-mm-scale="${formatCoordinate(scale)}" data-plan-baseline-y="${formatCoordinate(planBaselineY)}" transform="translate(0 ${planY})" aria-label="${mark}俯视图">${planOrientation}<rect class="design-plan-view__wall" data-object-id="${escapeXml(createWindowInstallationWallObjectId(window.objectId))}"${selectedAttribute(createWindowInstallationWallObjectId(window.objectId))} data-plan-wall="true"${wallPaint.metadata} width="${width}" y="${formatCoordinate(planWallTopY)}" height="${formatCoordinate(planWallHeight)}" fill="${wallPaint.fill}" fill-opacity="${formatCoordinate(wallStyle.opacity)}" stroke="#a68a64" />${planSurround}<rect class="design-plan-view__frame" data-plan-frame="true" width="${width}" y="${formatCoordinate(planFrameTopY)}" height="${formatCoordinate(planFrameDepth)}" fill="${frameEdge.cssColor}" fill-opacity="${formatCoordinate(frameEdge.opacity)}" stroke="#64748b" /><rect class="design-plan-view__glass" x="${window.frameFaceMm * scale}" y="${formatCoordinate(planFrameTopY + 5)}" width="${Math.max(0, width - window.frameFaceMm * scale * 2)}" height="${Math.max(1, planFrameDepth - 10)}" fill="${glassStyle.cssColor}" fill-opacity="${formatCoordinate(glassStyle.opacity)}" stroke="#7aa7bd" /><line class="design-plan-view__frame-reference" x1="${window.frameFaceMm * scale}" y1="${formatCoordinate(planBaselineY)}" x2="${Math.max(window.frameFaceMm * scale, width - window.frameFaceMm * scale)}" y2="${formatCoordinate(planBaselineY)}" stroke="#1677ff" />${planInstallationDimensions}${planMotion}${planLabel}</g>`
+    ? `<g class="design-plan-view" data-section-preset-id="${escapeXml(section.presetId)}" data-plan-frame-depth-mm="${formatCoordinate(section.frameDepthMm)}" data-plan-sash-depth-mm="${formatCoordinate(section.sashDepthMm)}" data-plan-wall-thickness-mm="${formatCoordinate(installationSection.wallThicknessMm)}" data-plan-wall-center-z-mm="${formatCoordinate(installationSection.wallCenterZMm)}" data-plan-mounting-mode="${installation.surround.mountingMode}" data-plan-frame-alignment="${installation.surround.frameAlignment}" data-plan-mm-scale="${formatCoordinate(scale)}" data-plan-baseline-y="${formatCoordinate(planBaselineY)}" transform="translate(0 ${planY})" aria-label="${mark}俯视图">${planOrientation}<rect class="design-plan-view__wall" data-object-id="${escapeXml(createWindowInstallationWallObjectId(window.objectId))}"${selectedAttribute(createWindowInstallationWallObjectId(window.objectId))} data-plan-wall="true"${wallPaint.metadata} width="${width}" y="${formatCoordinate(planWallTopY)}" height="${formatCoordinate(planWallHeight)}" fill="${wallPaint.fill}" fill-opacity="${formatCoordinate(wallStyle.opacity)}" stroke="#a68a64" />${planSurround}<rect class="design-plan-view__frame" data-plan-frame="true" width="${width}" y="${formatCoordinate(planFrameTopY)}" height="${formatCoordinate(planFrameDepth)}" fill="${frameEdge.cssColor}" fill-opacity="${formatCoordinate(frameEdge.opacity)}" stroke="#64748b" /><rect class="design-plan-view__glass" x="${window.frameFaceMm * scale}" y="${formatCoordinate(planFrameTopY + 5)}" width="${Math.max(0, width - window.frameFaceMm * scale * 2)}" height="${Math.max(1, planFrameDepth - 10)}" fill="${glassStyle.cssColor}" fill-opacity="${formatCoordinate(glassStyle.opacity)}" stroke="#7aa7bd" /><line class="design-plan-view__frame-reference" x1="${window.frameFaceMm * scale}" y1="${formatCoordinate(planBaselineY)}" x2="${Math.max(window.frameFaceMm * scale, width - window.frameFaceMm * scale)}" y2="${formatCoordinate(planBaselineY)}" stroke="#1677ff" />${planInstallationDimensions}${planSliding}${planMotion}${planLabel}</g>`
     : "";
   const markY = facadeBottom + (showDimensions ? 68 + dimensionLanes.bottom * 34 : 24);
   const facadeOrientationX = orientationColumnX;
@@ -3130,6 +3253,7 @@ function renderWindow(
     facadeSurround,
     `<rect class="design-window__outline" width="${width}" height="${height}" fill="${glassStyle.cssColor}" fill-opacity="${formatCoordinate(Math.min(0.18, glassStyle.opacity))}" stroke="#475569" stroke-width="2" pointer-events="none" />`,
     ...cells,
+    ...slidingPanels,
     ...openings,
     ...meetingMullions,
     ...frames,

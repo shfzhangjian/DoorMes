@@ -32,6 +32,7 @@ import {
 import {
   createOpeningMechanismMotion,
   createOpeningPanelKey,
+  createSlidingOpeningMotion,
   resolveOpeningConnectionLayout,
   resolveOpeningPose,
   sampleOpeningAngleArc,
@@ -1190,6 +1191,7 @@ function createThreeLinearDimensionAnnotation(input: Readonly<{
     "cell-width" | "cell-height" |
     "component-width" | "component-height" | "component-depth" |
     "opening-width" | "opening-height" | "sash-depth" |
+    "sliding-panel-width" | "sliding-panel-height" | "sliding-travel" |
     "hardware-width" | "hardware-height" | "hardware-depth" |
     "wall-thickness" | "frame-wall-offset" |
     "surround-outer-width" | "surround-outer-height" |
@@ -2310,6 +2312,10 @@ function windowOwnsDimensionSelection(
     geometry.openings.some((item) =>
       createOpeningPanelKey(item.objectId, item.panelId) === objectId
     ) ||
+    geometry.slidingTracks.some((item) => item.objectId === objectId) ||
+    geometry.slidingPanels.some((item) =>
+      createOpeningPanelKey(item.sourceObjectId, item.panelId) === objectId
+    ) ||
     geometry.members.some((item) => item.objectId === objectId) ||
     geometry.meetingMullions.some((item) => item.objectId === objectId) ||
     geometry.hardware.some((item) => item.hardwareId === objectId);
@@ -2355,6 +2361,9 @@ function createThreeWindowDimensionAnnotations(input: Readonly<{
   );
   const selectedPanel = input.geometry.openings.find((opening) =>
     createOpeningPanelKey(opening.objectId, opening.panelId) === input.selectedObjectId
+  );
+  const selectedSlidingPanel = input.geometry.slidingPanels.find((panel) =>
+    createOpeningPanelKey(panel.sourceObjectId, panel.panelId) === input.selectedObjectId
   );
   const selectedOpening = selectedPanel;
   const selectedCell = input.geometry.cells.find((cell) =>
@@ -2409,6 +2418,12 @@ function createThreeWindowDimensionAnnotations(input: Readonly<{
     const belongsToSelectedOpening = openingDimensionPrefix
       ? String(dimension.userData.dimensionId).startsWith(openingDimensionPrefix)
       : false;
+    const slidingDimensionPrefix = selectedSlidingPanel
+      ? `${selectedSlidingPanel.sourceObjectId}:${selectedSlidingPanel.panelId}:`
+      : undefined;
+    const belongsToSelectedSlidingPanel = slidingDimensionPrefix
+      ? String(dimension.userData.dimensionId).startsWith(slidingDimensionPrefix)
+      : false;
     const isWindowEnvelope = kind === "overall-width" || kind === "overall-height";
     const isSectionDepth = kind === "frame-depth";
     const isWallDimension = kind === "wall-thickness" || kind === "frame-wall-offset";
@@ -2419,6 +2434,7 @@ function createThreeWindowDimensionAnnotations(input: Readonly<{
     if (
       (selectsWholeWindow && (isWindowEnvelope || isSectionDepth)) ||
       belongsToSelectedOpening ||
+      belongsToSelectedSlidingPanel ||
       (selectedCell !== undefined && isCellDimension) ||
       ((selectedFrame !== undefined || selectedMember !== undefined ||
         selectedInstallationPiece !== undefined) && isComponentDimension) ||
@@ -2688,6 +2704,56 @@ function createThreeWindowDimensionAnnotations(input: Readonly<{
       tickDirection: new Vector3(0.024, 0, 0),
       labelOffset: new Vector3(-0.06, 0, 0)
     }));
+  }
+  for (const panel of input.geometry.slidingPanels) {
+    const panelLeftX = panel.xMm * MILLIMETRES_TO_METRES - input.widthMetres / 2;
+    const panelRightX = (panel.xMm + panel.widthMm) * MILLIMETRES_TO_METRES -
+      input.widthMetres / 2;
+    const panelTopY = input.heightMetres / 2 - panel.yMm * MILLIMETRES_TO_METRES;
+    const panelBottomY = input.heightMetres / 2 -
+      (panel.yMm + panel.heightMm) * MILLIMETRES_TO_METRES;
+    const prefix = `${panel.panelId}滑扇`;
+    add(createThreeLinearDimensionAnnotation({
+      dimensionId: `${panel.sourceObjectId}:${panel.panelId}:dimension.width`,
+      kind: "sliding-panel-width",
+      valueMm: panel.widthMm,
+      label: `${prefix}宽 ${formatMm(panel.widthMm)}`,
+      measurementStart: new Vector3(panelLeftX, panelTopY, frontZ),
+      measurementEnd: new Vector3(panelRightX, panelTopY, frontZ),
+      dimensionStart: new Vector3(panelLeftX, panelTopY + 0.075, frontZ),
+      dimensionEnd: new Vector3(panelRightX, panelTopY + 0.075, frontZ),
+      tickDirection: new Vector3(0, 0.024, 0),
+      labelOffset: new Vector3(0, 0.045, 0)
+    }));
+    add(createThreeLinearDimensionAnnotation({
+      dimensionId: `${panel.sourceObjectId}:${panel.panelId}:dimension.height`,
+      kind: "sliding-panel-height",
+      valueMm: panel.heightMm,
+      label: `${prefix}高 ${formatMm(panel.heightMm)}`,
+      measurementStart: new Vector3(panelLeftX, panelBottomY, frontZ),
+      measurementEnd: new Vector3(panelLeftX, panelTopY, frontZ),
+      dimensionStart: new Vector3(panelLeftX - 0.075, panelBottomY, frontZ),
+      dimensionEnd: new Vector3(panelLeftX - 0.075, panelTopY, frontZ),
+      tickDirection: new Vector3(0.024, 0, 0),
+      labelOffset: new Vector3(-0.06, 0, 0)
+    }));
+    if (panel.movable) {
+      const travelDirection = panel.travelDirection === "left" ? -1 : 1;
+      const travelEndX = panelLeftX +
+        travelDirection * panel.maximumTravelMm * MILLIMETRES_TO_METRES;
+      add(createThreeLinearDimensionAnnotation({
+        dimensionId: `${panel.sourceObjectId}:${panel.panelId}:dimension.travel`,
+        kind: "sliding-travel",
+        valueMm: panel.maximumTravelMm,
+        label: `最大行程 ${formatMm(panel.maximumTravelMm)}`,
+        measurementStart: new Vector3(panelLeftX, panelBottomY, frontZ),
+        measurementEnd: new Vector3(travelEndX, panelBottomY, frontZ),
+        dimensionStart: new Vector3(panelLeftX, panelBottomY - 0.075, frontZ),
+        dimensionEnd: new Vector3(travelEndX, panelBottomY - 0.075, frontZ),
+        tickDirection: new Vector3(0, 0.024, 0),
+        labelOffset: new Vector3(0, -0.045, 0)
+      }));
+    }
   }
   const firstOpening = selectedOpening ?? input.geometry.openings[0];
   if (firstOpening) {
@@ -3166,7 +3232,10 @@ export class ThreeDesignSceneBuilder {
         meshDepth: depth
       });
     }
-    const openingCellIds = new Set(geometry.openings.map((opening) => opening.objectId));
+    const openingCellIds = new Set([
+      ...geometry.openings.map((opening) => opening.objectId),
+      ...geometry.slidingPanels.map((panel) => panel.sourceObjectId)
+    ]);
     for (const cell of geometry.cells) {
       if (openingCellIds.has(cell.objectId)) continue;
       addRectangle({
@@ -3177,6 +3246,144 @@ export class ThreeDesignSceneBuilder {
         material: glassMaterial,
         meshDepth: glassDepth
       });
+    }
+    const slidingAssemblyGroups = new Map<string, Group>();
+    const slidingTrackMaterial = new LineBasicMaterial({ color: 0x64748b });
+    for (const track of geometry.slidingTracks) {
+      const railLine = new Line(
+        new BufferGeometry().setFromPoints([
+          new Vector3(
+            track.startXMm * MILLIMETRES_TO_METRES - width / 2,
+            height / 2 - track.sillYMm * MILLIMETRES_TO_METRES,
+            track.centerOffsetZMm * MILLIMETRES_TO_METRES
+          ),
+          new Vector3(
+            track.endXMm * MILLIMETRES_TO_METRES - width / 2,
+            height / 2 - track.sillYMm * MILLIMETRES_TO_METRES,
+            track.centerOffsetZMm * MILLIMETRES_TO_METRES
+          )
+        ]),
+        slidingTrackMaterial
+      );
+      this.#tag(
+        railLine,
+        track.objectId,
+        window.objectId,
+        "sliding-track-centreline",
+        track.sourceComponentId
+      );
+      railLine.userData.trackIndex = track.trackIndex;
+      railLine.userData.trackCenterOffsetZMm = track.centerOffsetZMm;
+      railLine.userData.allocatedDepthMm = track.allocatedDepthMm;
+      group.add(railLine);
+    }
+    for (const panel of [...geometry.slidingPanels]
+      .sort((leftPanel, rightPanel) => rightPanel.trackIndex - leftPanel.trackIndex)) {
+      let assemblyGroup = slidingAssemblyGroups.get(panel.sourceObjectId);
+      if (!assemblyGroup) {
+        assemblyGroup = new Group();
+        this.#tag(
+          assemblyGroup,
+          panel.sourceObjectId,
+          window.objectId,
+          "sliding-opening-assembly",
+          panel.assemblySourceComponentId
+        );
+        slidingAssemblyGroups.set(panel.sourceObjectId, assemblyGroup);
+        group.add(assemblyGroup);
+      }
+      const track = geometry.slidingTracks.find(
+        (candidate) => candidate.sourceObjectId === panel.sourceObjectId &&
+          candidate.trackIndex === panel.trackIndex
+      );
+      if (!track) throw new Error(`Sliding panel ${panel.objectId} has no resolved rail.`);
+      const previewKey = createOpeningPanelKey(panel.sourceObjectId, panel.panelId);
+      const previewProgress = panel.movable
+        ? options.openingProgressPercentByPanelKey?.[previewKey] ?? panel.openPercent
+        : 0;
+      const translationXMm = panel.movable && panel.travelDirection
+        ? resolveOpeningPose(createSlidingOpeningMotion({
+            motionId: `${previewKey}:sliding`,
+            direction: panel.travelDirection,
+            travelMm: panel.maximumTravelMm
+          }), previewProgress).translationMm.x
+        : 0;
+      const sashGroup = new Group();
+      const panelWidth = panel.widthMm * MILLIMETRES_TO_METRES;
+      const panelHeight = panel.heightMm * MILLIMETRES_TO_METRES;
+      const face = Math.min(
+        window.sashFaceMm * MILLIMETRES_TO_METRES,
+        panelWidth / 2,
+        panelHeight / 2
+      );
+      // A 1mm visual clearance prevents coplanar faces from flashing. The
+      // allocated track band remains available as metadata and is not promoted
+      // to a supplier sash/rail section or manufacturing dimension.
+      const visualPanelDepth = Math.max(
+        0.001,
+        track.allocatedDepthMm * MILLIMETRES_TO_METRES - 0.001
+      );
+      sashGroup.position.set(
+        (panel.xMm + translationXMm + panel.widthMm / 2) * MILLIMETRES_TO_METRES - width / 2,
+        height / 2 - (panel.yMm + panel.heightMm / 2) * MILLIMETRES_TO_METRES,
+        panel.trackCenterOffsetZMm * MILLIMETRES_TO_METRES
+      );
+      this.#tag(
+        sashGroup,
+        previewKey,
+        window.objectId,
+        "sliding-opening-panel",
+        panel.sourceComponentId
+      );
+      sashGroup.userData.panelId = panel.panelId;
+      sashGroup.userData.panelRole = panel.role;
+      sashGroup.userData.previewPanelKey = previewKey;
+      sashGroup.userData.previewProgressPercent = previewProgress;
+      sashGroup.userData.previewTranslationXMm = translationXMm;
+      sashGroup.userData.trackIndex = panel.trackIndex;
+      sashGroup.userData.trackCenterOffsetZMm = panel.trackCenterOffsetZMm;
+      sashGroup.userData.maximumTravelMm = panel.maximumTravelMm;
+      sashGroup.userData.panelPitchMm = panel.panelPitchMm;
+      sashGroup.userData.visualOnlyTrackClearanceMm = 1;
+      if (panel.travelDirection) sashGroup.userData.travelDirection = panel.travelDirection;
+
+      const addSlidingPart = (
+        partWidth: number,
+        partHeight: number,
+        x: number,
+        y: number,
+        material: MeshStandardMaterial | MeshStandardMaterial[],
+        part: string,
+        meshDepth: number
+      ): void => {
+        const mesh = new Mesh(
+          new BoxGeometry(Math.max(0.001, partWidth), Math.max(0.001, partHeight), meshDepth),
+          material
+        );
+        mesh.position.set(x, y, 0);
+        this.#tag(
+          mesh,
+          previewKey,
+          window.objectId,
+          "sliding-opening-panel",
+          `${panel.sourceComponentId}.${part}`
+        );
+        sashGroup.add(mesh);
+      };
+      addSlidingPart(panelWidth, face, 0, panelHeight / 2 - face / 2, sashMaterial, "sash.top", visualPanelDepth);
+      addSlidingPart(panelWidth, face, 0, -panelHeight / 2 + face / 2, sashMaterial, "sash.bottom", visualPanelDepth);
+      addSlidingPart(face, panelHeight, -panelWidth / 2 + face / 2, 0, sashMaterial, "sash.left", visualPanelDepth);
+      addSlidingPart(face, panelHeight, panelWidth / 2 - face / 2, 0, sashMaterial, "sash.right", visualPanelDepth);
+      addSlidingPart(
+        Math.max(0.001, panelWidth - face * 2),
+        Math.max(0.001, panelHeight - face * 2),
+        0,
+        0,
+        glassMaterial,
+        "glass",
+        Math.min(glassDepth, visualPanelDepth)
+      );
+      assemblyGroup.add(sashGroup);
     }
     const openingAssemblyGroups = new Map<string, Group>();
     const panelGroups = new Map<string, {

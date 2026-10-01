@@ -5,6 +5,9 @@ import {
   createFabricationAssemblyCommand,
   createDrawingTextLabelCommand,
   createRectangularWindowCommand,
+  createSetWindowCellOpeningCommand,
+  createUpdateFactoryDrawingElementOptionsCommand,
+  createUpdateFactoryDrawingAnnotationLayoutCommand,
   DesignSession,
   requireEngineeringJointCatalogSelection
 } from "@doormes/application";
@@ -268,6 +271,58 @@ describe("prototype v2 compatibility", () => {
 });
 
 describe("formal local design snapshots", () => {
+  it("round-trips a canonical sliding cell and rejects inconsistent panel identity", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-SLIDING-SNAPSHOT"));
+    session.execute(createRectangularWindowCommand({
+      commandId: "CREATE-SLIDING-SNAPSHOT",
+      windowId: "WIN-SLIDING-SNAPSHOT",
+      mark: "S1",
+      widthMm: 1800,
+      heightMm: 1500,
+      cellId: "CELL-SLIDING-SNAPSHOT"
+    }));
+    session.execute(createSetWindowCellOpeningCommand({
+      commandId: "SET-SLIDING-SNAPSHOT",
+      windowId: "WIN-SLIDING-SNAPSHOT",
+      cellId: "CELL-SLIDING-SNAPSHOT",
+      cellType: "sliding",
+      opening: "slide_left",
+      hardwareSetId: "HW-SLIDE-TEST"
+    }));
+    const storage = new MemoryKeyValueStorage();
+    const repository = new LocalDesignSnapshotRepository(storage, "project:sliding");
+
+    repository.save(session.document, "2026-09-24T05:00:00.000Z");
+    const restored = repository.load();
+
+    expect(restored?.document.windows[0]?.layout.cells[0]).toMatchObject({
+      type: "sliding",
+      opening: "slide_left",
+      hardwareSetId: "HW-SLIDE-TEST",
+      openingAssembly: {
+        mechanism: "sliding",
+        panelCount: 2,
+        activePanelCount: 1,
+        trackCount: 2,
+        stackSide: "left",
+        overlapMm: 35,
+        operationSequence: ["P2"],
+        panels: [
+          { id: "P1", role: "passive", trackIndex: 1 },
+          { id: "P2", role: "active", trackIndex: 0, travelDirection: "left" }
+        ]
+      }
+    });
+
+    const inconsistent = structuredClone(session.document) as unknown as {
+      windows: Array<{ layout: { cells: Array<{ openingAssembly: { panels: Array<{ id: string }> } }> } }>;
+    };
+    inconsistent.windows[0]!.layout.cells[0]!.openingAssembly.panels[0]!.id = "DUPLICATE";
+    expect(() => parseFormalDesignDocument(inconsistent)).toThrow(
+      "metadata is inconsistent"
+    );
+  });
+
   it("round-trips user-authored drawing labels without generating system prose", () => {
     const session = new DesignSession(createEmptyDesign("DESIGN-PERSIST-LABEL"));
     session.execute(createRectangularWindowCommand({
@@ -304,6 +359,45 @@ describe("formal local design snapshots", () => {
     expect(restored.document.drawingTextLabels).toEqual(session.document.drawingTextLabels);
     expect(serialized).toContain("洞口尺寸以复测为准");
     expect(serialized).not.toContain("墙洞安装");
+  });
+
+  it("round-trips per-element factory drawing output choices", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-PERSIST-FACTORY-OPTIONS"));
+    session.execute(createUpdateFactoryDrawingElementOptionsCommand({
+      commandId: "PERSIST-FACTORY-OPTIONS",
+      objectId: "WINDOW-1:frame.left",
+      factoryDrawingNumber: "C1-FR-L01",
+      showDimensions: false,
+      showInComponentTable: true
+    }));
+
+    const restored = parseFormalDesignSnapshotText(serializeFormalDesignSnapshot(
+      session.document,
+      "2026-09-24T10:00:00.000Z"
+    ));
+
+    expect(restored.document.factoryDrawingElementOptions).toEqual(
+      session.document.factoryDrawingElementOptions
+    );
+  });
+
+  it("round-trips locked factory annotation positions without exposing internal IDs as labels", () => {
+    const session = new DesignSession(createEmptyDesign("DESIGN-PERSIST-FACTORY-LAYOUT"));
+    session.execute(createUpdateFactoryDrawingAnnotationLayoutCommand({
+      commandId: "PERSIST-FACTORY-LAYOUT",
+      annotationId: "PI-LOCAL-TRACE:factory-callout",
+      offsetPaperMm: { x: 12.4, y: -8.6 },
+      locked: true
+    }));
+
+    const restored = parseFormalDesignSnapshotText(serializeFormalDesignSnapshot(
+      session.document,
+      "2026-09-24T10:00:00.000Z"
+    ));
+
+    expect(restored.document.factoryDrawingAnnotationLayouts).toEqual(
+      session.document.factoryDrawingAnnotationLayouts
+    );
   });
 
   it("round-trips connected fabrication assemblies after restoring their windows", () => {

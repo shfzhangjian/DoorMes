@@ -242,6 +242,84 @@ export interface TopHungWindowCell {
   readonly hardwareSetId: string;
 }
 
+/** Physical travel direction of one movable sliding sash on its local rail. */
+export type SlidingTravelDirection = "left" | "right";
+
+/**
+ * One panel in a rail-based sliding opening assembly.
+ *
+ * The panel identity and closed position are deliberately independent from its
+ * product model. A passive panel may share the same profile model as an active
+ * panel while having no runtime travel, and a future product template may map
+ * either role to a different sash/profile system without changing geometry.
+ *
+ * @example `P1` is the left closed-position panel on track 0 and travels right.
+ * @since 0.11.2
+ */
+export interface SlidingOpeningPanel {
+  readonly id: string;
+  readonly label: string;
+  readonly role: "active" | "passive";
+  readonly movable: boolean;
+  /** Zero-based rail index from exterior to interior. */
+  readonly trackIndex: number;
+  /** Zero-based left-to-right panel order in the closed elevation. */
+  readonly closedPositionIndex: number;
+  /** Operation order among movable panels; passive panels omit the value. */
+  readonly operationOrder?: number;
+  /** Local-X travel direction; passive panels omit the value. */
+  readonly travelDirection?: SlidingTravelDirection;
+}
+
+/**
+ * Device-independent sliding assembly shared by drawing and simulation views.
+ *
+ * It records manufacturing intent only: panel/rail allocation, overlap and
+ * operation order. The actual millimetre travel is resolved from host geometry
+ * later and fed to the opening-kinematics linear motion contract, preventing a
+ * renderer from inventing product dimensions.
+ *
+ * @example A standard two-panel/two-track window has one active and one passive panel.
+ * @since 0.11.2
+ */
+export interface SlidingOpeningAssembly {
+  readonly mechanism: "sliding";
+  readonly panelCount: 2 | 3 | 4 | 5 | 6;
+  readonly activePanelCount: 1 | 2 | 3 | 4 | 5;
+  readonly trackCount: 2 | 3 | 4;
+  readonly stackSide: "left" | "right" | "both";
+  /** Designed face overlap between adjacent closed panels. */
+  readonly overlapMm: number;
+  /** Persisted preview target; runtime animation state remains outside the document. */
+  readonly openPercent: number;
+  readonly panels: readonly SlidingOpeningPanel[];
+  readonly operationSequence: readonly string[];
+}
+
+/** User-authored rail allocation before stable panel metadata is normalized. */
+export interface SlidingPanelAllocationIntent {
+  readonly trackIndex: number;
+  readonly movable: boolean;
+  readonly travelDirection?: SlidingTravelDirection;
+}
+
+/**
+ * One rail-based sliding cell in the formal design graph.
+ *
+ * The first executable slice supports ordinary left/right two-panel sliding;
+ * the assembly contract already carries the explicit rails and panels needed
+ * to expand to multi-panel collection without changing renderer semantics.
+ *
+ * @since 0.11.3
+ */
+export interface SlidingWindowCell {
+  readonly objectId: DesignObjectId;
+  readonly type: "sliding";
+  readonly opening: "slide_left" | "slide_right";
+  readonly openingAssembly: SlidingOpeningAssembly;
+  readonly hardwareSetId: string;
+}
+
 /**
  * Stable design region implemented by the current migration slices.
  *
@@ -252,7 +330,11 @@ export interface TopHungWindowCell {
  * @since 0.2.0
  * @modified 2026-09-17 - Extended fixed cells with the first tilt-turn slice.
  */
-export type WindowCell = FixedWindowCell | TiltTurnWindowCell | TopHungWindowCell;
+export type WindowCell =
+  | FixedWindowCell
+  | TiltTurnWindowCell
+  | TopHungWindowCell
+  | SlidingWindowCell;
 
 /**
  * Stores the rule-grid proportions and stable cells used by the first formal
@@ -1105,6 +1187,30 @@ export interface DrawingTextLabel {
 }
 
 /**
+ * Per-object factory-drawing output choices owned by the design snapshot.
+ *
+ * Both flags default to `true` when no entry exists. Keeping dimension output
+ * separate from schedule inclusion lets a designer suppress a crowded view
+ * without losing the physical component from the dedicated component page.
+ */
+export interface FactoryDrawingElementOptions {
+  readonly objectId: DesignObjectId;
+  /** Optional user-maintained short mark printed on factory drawings only. */
+  readonly factoryDrawingNumber?: string;
+  readonly showDimensions: boolean;
+  readonly showInComponentTable: boolean;
+}
+
+/** User paper-space placement of one generated factory-drawing annotation. */
+export interface FactoryDrawingAnnotationLayoutOverride {
+  /** Stable generated annotation ID; never used as visible text. */
+  readonly annotationId: string;
+  readonly offsetPaperMm: Readonly<{ x: number; y: number }>;
+  /** Locked offsets survive automatic relayout until explicitly reset. */
+  readonly locked: boolean;
+}
+
+/**
  * Immutable snapshot consumed by every renderer, shell and future calculator.
  *
  * Shell-local state such as open drawers, selected tabs and active gestures is
@@ -1123,6 +1229,24 @@ export interface DesignDocument {
   readonly assemblies?: readonly FabricationAssembly[];
   /** Optional only for pre-UI-2D-009 snapshots. */
   readonly drawingTextLabels?: readonly DrawingTextLabel[];
+  /** Optional only for snapshots created before per-component output controls. */
+  readonly factoryDrawingElementOptions?: readonly FactoryDrawingElementOptions[];
+  /** Optional only for snapshots created before draggable paper annotations. */
+  readonly factoryDrawingAnnotationLayouts?: readonly FactoryDrawingAnnotationLayoutOverride[];
+}
+
+/** Replaces the independent factory-drawing visibility flags for one object. */
+export interface UpdateFactoryDrawingElementOptionsCommand {
+  readonly type: "factory-drawing.update-element-options";
+  readonly commandId: string;
+  readonly options: FactoryDrawingElementOptions;
+}
+
+/** Creates, replaces or clears one manual factory-annotation placement. */
+export interface UpdateFactoryDrawingAnnotationLayoutCommand {
+  readonly type: "factory-drawing.update-annotation-layout";
+  readonly commandId: string;
+  readonly layout: FactoryDrawingAnnotationLayoutOverride;
 }
 
 /** Creates one explicit user-authored 2D text label. */
@@ -1343,22 +1467,23 @@ export interface DeleteWindowCommand {
 }
 
 /**
- * Replaces one stable cell's fixed/tilt-turn construction semantics.
+ * Replaces one stable cell's fixed or operable construction semantics.
  *
  * The command carries user intent, not a partially trusted assembly object.
  * Domain normalization creates the canonical assembly so desktop and mobile
  * cannot produce different panel/hinge/operation metadata.
  *
- * @example Set `CELL-1` to a right-in tilt-turn sash using `HW-TT-STD`.
+ * @example Set `CELL-1` to a right-in tilt-turn sash or ordinary sliding leaf set.
  * @since 0.4.9
  * @modified 2026-09-17 - Added undoable cell-opening construction intent.
+ * @modified 2026-09-24 - Added canonical ordinary-sliding configuration intent.
  */
 export interface SetWindowCellOpeningCommand {
   readonly type: "window.cell-set-opening";
   readonly commandId: string;
   readonly windowId: DesignObjectId;
   readonly cellId: DesignObjectId;
-  readonly cellType: "fixed_glass" | "turn_tilt" | "top_hung";
+  readonly cellType: "fixed_glass" | "turn_tilt" | "top_hung" | "sliding";
   readonly opening:
     | "fixed"
     | "left_in"
@@ -1366,12 +1491,21 @@ export interface SetWindowCellOpeningCommand {
     | "left_out"
     | "right_out"
     | "top_in"
-    | "top_out";
+    | "top_out"
+    | "slide_left"
+    | "slide_right";
   readonly hardwareSetId?: string;
   readonly panelCount?: 1 | 2;
   readonly mullionMode?: "fixed_mullion" | "flying_mullion";
   /** User-confirmed product travel limits; runtime preview consumes but never mutates them. */
   readonly maximumAngleDegreesByMode?: OpeningMaximumAngles;
+  /** Explicit ordinary-sliding panel/rail intent; omitted for the standard two-panel preset. */
+  readonly slidingConfiguration?: Readonly<{
+    trackCount: 2 | 3 | 4;
+    overlapMm: number;
+    panels: readonly SlidingPanelAllocationIntent[];
+    openPercent?: number;
+  }>;
 }
 
 /**
@@ -1681,6 +1815,8 @@ export type DesignCommand =
   | CreateDrawingTextLabelCommand
   | UpdateDrawingTextLabelCommand
   | DeleteDrawingTextLabelCommand
+  | UpdateFactoryDrawingElementOptionsCommand
+  | UpdateFactoryDrawingAnnotationLayoutCommand
   | CreateRectangularWindowCommand
   | CreateFabricationAssemblyCommand
   | AddFabricationAssemblyInstanceCommand

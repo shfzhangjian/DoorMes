@@ -4,6 +4,7 @@ import {
   createHingedOpeningMotion,
   createOpeningMechanismMotion,
   createOpeningPanelKey,
+  createSlidingOpeningMotion,
   findOpeningMotionCollisions,
   openingAngleDegreesToProgress,
   openingProgressToAngleDegrees,
@@ -74,6 +75,43 @@ describe("opening kinematics", () => {
     expect(pose.translationMm.y).toBe(12);
     expect(pose.translationMm.x).toBeCloseTo(300);
     expect(pose.activeStepIds).toEqual(["slide"]);
+  });
+
+  it("resolves ordinary sliding travel in physical millimetres for both directions", () => {
+    const left = createSlidingOpeningMotion({
+      motionId: "SLIDE-LEFT::P1:primary",
+      direction: "left",
+      travelMm: 620
+    });
+    const right = createSlidingOpeningMotion({
+      motionId: "SLIDE-RIGHT::P2:primary",
+      direction: "right",
+      travelMm: 480
+    });
+
+    expect(resolveOpeningPose(left, 0).translationMm.x).toBe(0);
+    expect(resolveOpeningPose(left, 50).translationMm.x).toBe(-310);
+    expect(resolveOpeningPose(left, 100).translationMm).toEqual({ x: -620, y: 0, z: 0 });
+    expect(resolveOpeningPose(right, 25).translationMm.x).toBe(120);
+    expect(resolveOpeningPose(right, 100).rotationRadians).toEqual({ x: 0, y: 0, z: 0 });
+  });
+
+  it("rejects ambiguous or non-physical ordinary sliding motion inputs", () => {
+    expect(() => createSlidingOpeningMotion({
+      motionId: " ",
+      direction: "left",
+      travelMm: 500
+    })).toThrow("motion ID");
+    expect(() => createSlidingOpeningMotion({
+      motionId: "SLIDE-INVALID",
+      direction: "right",
+      travelMm: 0
+    })).toThrow("positive finite");
+    expect(() => createSlidingOpeningMotion({
+      motionId: "SLIDE-NAN",
+      direction: "right",
+      travelMm: Number.NaN
+    })).toThrow("positive finite");
   });
 
   it("uses the 90-degree side-hung reference limit and the hardware-limited tilt angle", () => {

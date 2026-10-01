@@ -12,11 +12,13 @@ import {
   createRemoveWindowTopologyMemberCommand,
   createResizeWindowCommand,
   createSetWindowCellOpeningCommand,
+  createStandardSlidingConfiguration,
   createSplitWindowGridCommand,
   createUpdateFabricationAssemblyInstallationCommand,
   createUpdateWindowInstallationCommand,
   createUpdateEngineeringJointCommand,
   createUpdateDrawingTextLabelCommand,
+  createUpdateFactoryDrawingElementOptionsCommand,
   findEngineeringJointCatalogSelection,
   listEngineeringJointCatalogSelections,
   requireEngineeringJointCatalogSelection,
@@ -790,24 +792,31 @@ export function mountSharedDesignWorkspace(
   container.classList.add("design-workspace");
   container.innerHTML = `
     <div class="design-workspace__toolbar" role="toolbar" aria-label="设计视图">
-      <button type="button" data-view="2d" aria-pressed="true">2D绘图</button>
-      <button type="button" data-view="3d" aria-pressed="false">3D展现</button>
-      <span class="design-workspace__hint">2D / 3D / 对象树使用同一对象ID</span>
+      <div class="design-workspace__toolbar-group design-workspace__toolbar-group--views" role="group" aria-label="工作视图">
+        <span class="design-workspace__toolbar-caption">工作视图</span>
+        <div class="design-workspace__view-switch">
+          <button type="button" data-view="2d" aria-pressed="true">2D 工程图</button>
+          <button type="button" data-view="3d" aria-pressed="false">3D 仿真</button>
+        </div>
+      </div>
       <span class="design-workspace__asset-status" data-runtime-asset-status hidden role="status"></span>
-      <label class="design-workspace__shared-view-option"><input type="checkbox" data-show-dimensions aria-label="显示2D标尺及选中对象的3D尺寸" />尺寸</label>
-      <span class="design-workspace__2d-controls" data-2d-controls>
-        <label>图样<select data-2d-render-style aria-label="选择2D图样风格"><option value="material">材质图</option><option value="engineering-line">工程线稿</option></select></label>
-        <label><input type="checkbox" data-show-plan aria-label="显示俯视图" />俯视图</label>
-        <label><input type="checkbox" data-show-opening-state aria-label="显示开启状态" />开启状态</label>
-        <button type="button" data-add-text-label aria-label="在当前窗或组合上增加文字标签">文字标签</button>
-        <button type="button" data-reset-canvas>重置2D视图</button>
-      </span>
-      <span class="design-workspace__3d-controls" data-3d-controls hidden>
-        <label><input type="checkbox" data-show-selection-outline aria-label="显示3D选中辅助框" />选中框</label>
-        <label><input type="checkbox" data-show-installation-host aria-label="显示当前单窗或组合窗的3D参考墙体" />参考墙体</label>
-        <label><input type="checkbox" data-show-installation-surround aria-label="显示3D包边和洞口衬板" />包边</label>
-        <button type="button" data-reset-camera>重置3D视角</button>
-      </span>
+      <div class="design-workspace__toolbar-group design-workspace__toolbar-group--display" role="group" aria-label="图纸显示">
+        <span class="design-workspace__toolbar-caption">显示与图样</span>
+        <label class="design-workspace__shared-view-option"><input type="checkbox" data-show-dimensions aria-label="显示2D标尺及选中对象的3D尺寸" />尺寸</label>
+        <span class="design-workspace__2d-controls" data-2d-controls>
+          <label>图样<select data-2d-render-style aria-label="选择2D图样风格"><option value="material">材质图</option><option value="engineering-line">工程线稿</option></select></label>
+          <label><input type="checkbox" data-show-plan aria-label="显示俯视图" />俯视图</label>
+          <label><input type="checkbox" data-show-opening-state aria-label="显示开启状态" />开启状态</label>
+          <button type="button" data-add-text-label aria-label="在当前窗或组合上增加文字标签">文字标签</button>
+          <button type="button" data-reset-canvas>重置视图</button>
+        </span>
+        <span class="design-workspace__3d-controls" data-3d-controls hidden>
+          <label><input type="checkbox" data-show-selection-outline aria-label="显示3D选中辅助框" />选中框</label>
+          <label><input type="checkbox" data-show-installation-host aria-label="显示当前单窗或组合窗的3D参考墙体" />参考墙体</label>
+          <label><input type="checkbox" data-show-installation-surround aria-label="显示3D包边和洞口衬板" />包边</label>
+          <button type="button" data-reset-camera>重置视角</button>
+        </span>
+      </div>
       <span class="design-workspace__grid-controls" data-grid-controls aria-label="中梃与分格工具"></span>
       <span class="design-opening-controls" data-opening-controls aria-label="开关窗预览控制"></span>
     </div>
@@ -1010,7 +1019,9 @@ export function mountSharedDesignWorkspace(
    */
   const synchronizeOpeningControlStructure = (): void => {
     const definitions = openingPreview.panelDefinitions;
-    const signature = definitions.map((definition) => definition.key).join("|");
+    const signature = definitions
+      .map((definition) => `${definition.mechanism}:${definition.key}`)
+      .join("|");
     if (signature === openingControlsSignature) return;
     openingControlsSignature = signature;
     openingControlsHost.replaceChildren();
@@ -1023,17 +1034,21 @@ export function mountSharedDesignWorkspace(
       checkbox.type = "checkbox";
       checkbox.dataset.previewPanelKey = definition.key;
       checkbox.setAttribute("aria-label", `选择${definition.panelId}`);
-      const roleLabel = definition.panelRole === "primary"
-        ? "主动扇"
-        : definition.panelRole === "secondary"
-          ? "从动扇"
-          : "独立扇";
+      const roleLabel = definition.mechanism === "sliding"
+        ? "滑动扇"
+        : definition.panelRole === "primary"
+          ? "主动扇"
+          : definition.panelRole === "secondary"
+            ? "从动扇"
+            : "独立扇";
       label.append(checkbox, `${definition.panelId} ${roleLabel}`);
       panelList.append(label);
     }
     const progressLabel = document.createElement("label");
     progressLabel.className = "design-opening-controls__progress";
-    progressLabel.append("开启角度 ");
+    const progressCaption = document.createElement("span");
+    progressCaption.dataset.openingProgressCaption = "";
+    progressCaption.textContent = "开启角度 ";
     const angleRange = document.createElement("input");
     angleRange.type = "range";
     angleRange.min = "0";
@@ -1049,9 +1064,10 @@ export function mountSharedDesignWorkspace(
     angleNumber.inputMode = "decimal";
     angleNumber.dataset.openingAngleNumber = "";
     angleNumber.setAttribute("aria-label", "输入所选窗扇开启角度");
-    const degreeUnit = document.createElement("span");
-    degreeUnit.textContent = "°";
-    progressLabel.append(angleRange, angleNumber, degreeUnit);
+    const progressUnit = document.createElement("span");
+    progressUnit.dataset.openingProgressUnit = "";
+    progressUnit.textContent = "°";
+    progressLabel.append(progressCaption, angleRange, angleNumber, progressUnit);
     const mode = document.createElement("select");
     mode.dataset.openingMotionMode = "";
     mode.setAttribute("aria-label", "所选窗扇运动模式");
@@ -1091,38 +1107,68 @@ export function mountSharedDesignWorkspace(
     const mode = openingControlsHost.querySelector<HTMLSelectElement>(
       "[data-opening-motion-mode]"
     );
+    const progressCaption = openingControlsHost.querySelector<HTMLElement>(
+      "[data-opening-progress-caption]"
+    );
+    const progressUnit = openingControlsHost.querySelector<HTMLElement>(
+      "[data-opening-progress-unit]"
+    );
     const selectedDefinitions = openingPreview.panelDefinitions.filter((definition) =>
       selected.has(definition.key)
     );
-    const selectedAngles = selectedDefinitions.map((definition) =>
-      resolveOpeningPreviewAngleDegrees(definition, currentOpeningPreview)
-    );
-    const selectedMaximumAngles = selectedDefinitions.map((definition) => {
-      const selectedMode = currentOpeningPreview.panelMotionMode[definition.key] ??
-        definition.motionMode;
-      return resolveOpeningPreviewMaximumAngleDegrees(definition, selectedMode);
-    });
-    const average = selectedAngles.length
-      ? selectedAngles.reduce((sum, value) => sum + value, 0) / selectedAngles.length
+    const selectedMechanism = selectedDefinitions[0]?.mechanism ??
+      openingPreview.panelDefinitions[0]?.mechanism ?? "hinged";
+    const isSlidingSelection = selectedMechanism === "sliding";
+    const selectedValues = isSlidingSelection
+      ? selectedDefinitions.map((definition) =>
+          currentOpeningPreview.panelProgressPercent[definition.key] ?? 0
+        )
+      : selectedDefinitions.map((definition) =>
+          resolveOpeningPreviewAngleDegrees(definition, currentOpeningPreview)
+        );
+    const selectedMaximumAngles = isSlidingSelection
+      ? []
+      : selectedDefinitions.map((definition) => {
+          const selectedMode = currentOpeningPreview.panelMotionMode[definition.key] ??
+            definition.motionMode;
+          return resolveOpeningPreviewMaximumAngleDegrees(definition, selectedMode);
+        });
+    const average = selectedValues.length
+      ? selectedValues.reduce((sum, value) => sum + value, 0) / selectedValues.length
       : 0;
-    const sharedMaximum = selectedMaximumAngles.length
-      ? Math.min(...selectedMaximumAngles)
-      : 90;
-    const formattedAngle = (Math.round(average * 10) / 10).toFixed(1);
+    const sharedMaximum = isSlidingSelection
+      ? 100
+      : selectedMaximumAngles.length
+        ? Math.min(...selectedMaximumAngles)
+        : 90;
+    const formattedValue = (Math.round(average * 10) / 10).toFixed(1);
     const formattedMaximum = (Math.round(sharedMaximum * 10) / 10).toFixed(1);
+    if (progressCaption) {
+      progressCaption.textContent = isSlidingSelection ? "滑移开度 " : "开启角度 ";
+    }
+    if (progressUnit) progressUnit.textContent = isSlidingSelection ? "%" : "°";
     if (angleRange) {
-      angleRange.disabled = selectedAngles.length === 0;
+      angleRange.disabled = selectedValues.length === 0;
       angleRange.max = formattedMaximum;
-      angleRange.value = formattedAngle;
+      angleRange.value = formattedValue;
+      angleRange.setAttribute(
+        "aria-label",
+        isSlidingSelection ? "所选推拉扇滑移开度" : "所选窗扇开启角度"
+      );
     }
     if (angleNumber) {
-      angleNumber.disabled = selectedAngles.length === 0;
+      angleNumber.disabled = selectedValues.length === 0;
       angleNumber.max = formattedMaximum;
-      angleNumber.value = formattedAngle;
+      angleNumber.value = formattedValue;
+      angleNumber.setAttribute(
+        "aria-label",
+        isSlidingSelection ? "输入所选推拉扇滑移开度" : "输入所选窗扇开启角度"
+      );
     }
     if (mode) {
+      mode.hidden = isSlidingSelection;
       mode.disabled =
-        selectedDefinitions.length === 0 ||
+        isSlidingSelection || selectedDefinitions.length === 0 ||
         selectedDefinitions.some((definition) => !definition.supportsTilt);
       const modes = new Set(selectedDefinitions.map(
         (definition) => currentOpeningPreview.panelMotionMode[definition.key] ?? "primary"
@@ -1188,6 +1234,14 @@ export function mountSharedDesignWorkspace(
       target instanceof HTMLInputElement &&
       "openingAngleNumber" in target.dataset;
     if (isAngleRangeIntent || isAngleNumberIntent) {
+      const selectedDefinitions = openingPreview.panelDefinitions.filter((definition) =>
+        currentOpeningPreview.selectedPanelKeys.includes(definition.key)
+      );
+      if (selectedDefinitions[0]?.mechanism === "sliding") {
+        openingController.cancel();
+        openingPreview.setSelectedProgress(Number(target.value));
+        return;
+      }
       commitOpeningAngleIntent({
         readValue: () => target.value,
         cancelPlayback: () => openingController.cancel(),
@@ -3759,15 +3813,17 @@ export function mountSharedDesignSurface(
  * @param container Sidebar or drawer region that receives the tree.
  * @param session Shared design source.
  * @param selection Shared selection coordinator.
+ * @param presentation Hides program-only identities in the factory workspace.
  * @returns A disposer for events and subscriptions.
  * @example `mountDesignObjectTree(sidebar, session, selection)`.
  * @since 0.4.0
- * @modified 2026-09-18 - Added individually selectable generated hardware rows.
+ * @modified 2026-10-01 - Added a factory presentation without internal IDs.
  */
 export function mountDesignObjectTree(
   container: HTMLElement,
   session: DesignSession,
-  selection: DesignSelectionStore
+  selection: DesignSelectionStore,
+  presentation: "technical" | "factory-workbench" = "technical"
 ): () => void {
   container.classList.add("object-tree");
   let currentDocument = session.document;
@@ -3795,7 +3851,11 @@ export function mountDesignObjectTree(
     const fragment = document.createDocumentFragment();
     const status = document.createElement("p");
     status.className = "object-tree__selection";
-    status.textContent = selectedObjectId ? `当前选择：${selectedObjectId}` : "当前未选择构件";
+    status.textContent = selectedObjectId
+      ? presentation === "factory-workbench"
+        ? "当前已选中构件"
+        : `当前选择：${selectedObjectId}`
+      : "当前未选择构件";
     fragment.append(status);
     if (currentDocument.windows.length === 0) {
       const empty = document.createElement("p");
@@ -3913,6 +3973,8 @@ export function mountDesignObjectTree(
               : "单扇内开/内倒"
           : sourceCell?.type === "top_hung"
             ? sourceCell.opening === "top_out" ? "上悬外开" : "上悬内开"
+          : sourceCell?.type === "sliding"
+            ? `普通推拉 · ${sourceCell.openingAssembly.panelCount}扇${sourceCell.openingAssembly.trackCount}轨 · ${sourceCell.opening === "slide_left" ? "活动扇向左收拢" : "活动扇向右收拢"}`
           : "固定玻璃";
         appendRow(
           list,
@@ -3933,6 +3995,26 @@ export function mountDesignObjectTree(
             createOpeningPanelKey(panel.objectId, panel.panelId),
             `窗扇 · ${panel.panelId} · ${panelRole}`,
             "opening-panel"
+          );
+        }
+        for (const panel of geometry.slidingPanels.filter(
+          (candidate) => candidate.sourceObjectId === cell.objectId
+        )) {
+          appendRow(
+            list,
+            createOpeningPanelKey(panel.sourceObjectId, panel.panelId),
+            `推拉扇 · ${panel.panelId} · ${panel.movable ? "活动" : "固定"} · 第${panel.trackIndex + 1}轨`,
+            "sliding-panel"
+          );
+        }
+        for (const track of geometry.slidingTracks.filter(
+          (candidate) => candidate.sourceObjectId === cell.objectId
+        )) {
+          appendRow(
+            list,
+            track.objectId,
+            `轨道 · 第${track.trackIndex + 1}轨（中性中心线）`,
+            "sliding-track"
           );
         }
       }
@@ -4088,7 +4170,17 @@ function selectedWindowCell(
       )
     );
     if (panelCell) return { window, cell: panelCell };
-    const meeting = resolveWindowGeometry(window).meetingMullions.find(
+    const geometry = resolveWindowGeometry(window);
+    const slidingTrack = geometry.slidingTracks.find(
+      (candidate) => candidate.objectId === objectId
+    );
+    if (slidingTrack) {
+      const host = window.layout.cells.find(
+        (candidate) => candidate.objectId === slidingTrack.sourceObjectId
+      );
+      if (host) return { window, cell: host };
+    }
+    const meeting = geometry.meetingMullions.find(
       (candidate) => candidate.objectId === objectId
     );
     if (meeting) {
@@ -4217,6 +4309,10 @@ function selectedOwningWindow(
       ...geometry.cells,
       ...geometry.openings.map((opening) => ({
         objectId: createOpeningPanelKey(opening.objectId, opening.panelId)
+      })),
+      ...geometry.slidingTracks,
+      ...geometry.slidingPanels.map((panel) => ({
+        objectId: createOpeningPanelKey(panel.sourceObjectId, panel.panelId)
       })),
       ...geometry.members,
       ...geometry.meetingMullions,
@@ -4352,9 +4448,11 @@ export function resolveProductTemplateInspectorSummary(
 export function mountDesignObjectInspector(
   container: HTMLElement,
   session: DesignSession,
-  selection: DesignSelectionStore
+  selection: DesignSelectionStore,
+  presentation: "technical" | "factory-workbench" = "technical"
 ): () => void {
   container.classList.add("object-inspector");
+  container.dataset.inspectorPresentation = presentation;
   let currentDocument = session.document;
   let selectedObjectId = selection.state.objectId;
   let commandSequence = 0;
@@ -4389,6 +4487,61 @@ export function mountDesignObjectInspector(
     const identity = target.querySelector(".object-inspector__identity");
     if (identity) identity.insertAdjacentElement("afterend", notice);
     else target.prepend(notice);
+  };
+
+  /** Adds the two independent factory-output switches to the selected element. */
+  const replaceInspectorContent = (
+    target: HTMLElement,
+    includeFactoryOptions = true
+  ): void => {
+    if (presentation === "factory-workbench") {
+      // Keep stable object IDs in command datasets, but not in business-facing
+      // identity labels. The one exception is the plain-language "用户维护" tag.
+      target.querySelectorAll<HTMLElement>(
+        ".object-inspector__identity > span:not([data-business-label])"
+      ).forEach((identity) => {
+        identity.textContent = "";
+        identity.hidden = true;
+      });
+    }
+    const objectId = selectedObjectId ? String(selectedObjectId) : "";
+    if (includeFactoryOptions && objectId && !objectId.includes(":installation.wall")) {
+      const saved = currentDocument.factoryDrawingElementOptions?.find(
+        (item) => item.objectId === objectId
+      );
+      const group = document.createElement("fieldset");
+      group.className = "object-inspector__factory-output";
+      group.dataset.factoryDrawingObjectId = objectId;
+      const legend = document.createElement("legend");
+      legend.textContent = "工厂图输出";
+      const number = document.createElement("label");
+      number.textContent = "图面短编号";
+      const numberInput = document.createElement("input");
+      numberInput.type = "text";
+      numberInput.maxLength = 32;
+      numberInput.placeholder = "自动生成";
+      numberInput.value = saved?.factoryDrawingNumber ?? "";
+      numberInput.dataset.factoryDrawingNumber = "true";
+      number.append(numberInput);
+      const dimensions = document.createElement("label");
+      const dimensionsInput = document.createElement("input");
+      dimensionsInput.type = "checkbox";
+      dimensionsInput.checked = saved?.showDimensions ?? true;
+      dimensionsInput.dataset.factoryDrawingOption = "dimensions";
+      dimensions.append(dimensionsInput, " 在图面显示该元件尺寸");
+      const table = document.createElement("label");
+      const tableInput = document.createElement("input");
+      tableInput.type = "checkbox";
+      tableInput.checked = saved?.showInComponentTable ?? true;
+      tableInput.dataset.factoryDrawingOption = "table";
+      table.append(tableInput, " 收录到独立组成件表");
+      const hint = document.createElement("p");
+      hint.className = "object-inspector__hint";
+      hint.textContent = "短编号只用于图纸；内部图元ID保持不变。两项显隐互不绑定。";
+      group.append(legend, number, dimensions, table, hint);
+      target.append(group);
+    }
+    container.replaceChildren(target);
   };
 
   /** Refreshes orientation-dependent millimetres without mutating domain state. */
@@ -4463,10 +4616,12 @@ export function mountDesignObjectInspector(
     const hardware = form.elements.namedItem("hardwareSetId");
     const primaryMaximum = form.elements.namedItem("primaryMaximumAngleDegrees");
     const tiltMaximum = form.elements.namedItem("tiltMaximumAngleDegrees");
+    const slidingOverlap = form.elements.namedItem("slidingOverlapMm");
     const openingLabel = form.querySelector<HTMLElement>("[data-opening-label]");
     const openingHint = form.querySelector<HTMLElement>("[data-opening-hint]");
     const primaryMaximumLabel = form.querySelector<HTMLElement>("[data-primary-maximum-label]");
     const tiltMaximumLabel = form.querySelector<HTMLElement>("[data-tilt-maximum-label]");
+    const slidingOverlapLabel = form.querySelector<HTMLElement>("[data-sliding-overlap-label]");
     if (
       !(cellType instanceof HTMLSelectElement) ||
       !(assemblyMode instanceof HTMLSelectElement) ||
@@ -4474,10 +4629,21 @@ export function mountDesignObjectInspector(
     ) return;
     const fixed = cellType.value === "fixed_glass";
     const topHung = cellType.value === "top_hung";
+    const sliding = cellType.value === "sliding";
     if (topHung) assemblyMode.value = "single";
-    assemblyMode.disabled = fixed || topHung;
-    const fixedDouble = !topHung && assemblyMode.value === "double_fixed";
-    const flyingDouble = !topHung && assemblyMode.value === "double_flying";
+    if (fixed) assemblyMode.value = "single";
+    if (sliding) assemblyMode.value = "sliding_standard";
+    for (const option of [...assemblyMode.options]) {
+      option.hidden = sliding
+        ? option.value !== "sliding_standard"
+        : option.value === "sliding_standard";
+      option.disabled = option.hidden;
+    }
+    assemblyMode.disabled = fixed || topHung || sliding;
+    const fixedDouble = !fixed && !topHung && !sliding &&
+      assemblyMode.value === "double_fixed";
+    const flyingDouble = !fixed && !topHung && !sliding &&
+      assemblyMode.value === "double_flying";
     const openingTextByValue: Readonly<Record<string, string>> = flyingDouble
       ? {
           left_in: "左主动扇 · 内开（左右扇各自铰接）",
@@ -4486,7 +4652,9 @@ export function mountDesignObjectInspector(
           right_out: "右主动扇 · 外开（左右扇各自铰接）",
           independent: "左右独立内平开（左扇左铰，右扇右铰）",
           top_out: "上悬外开（上铰）",
-          top_in: "上悬内开（上铰，特殊构造）"
+          top_in: "上悬内开（上铰，特殊构造）",
+          slide_left: "活动扇向左收拢（室内视）",
+          slide_right: "活动扇向右收拢（室内视）"
         }
       : {
           left_in: "左开内平开（室内视，左铰，可内倒）",
@@ -4495,11 +4663,15 @@ export function mountDesignObjectInspector(
           right_out: "右开外平开（室内视，右铰）",
           independent: "左右独立内平开（左扇左铰，右扇右铰）",
           top_out: "上悬外开（上铰）",
-          top_in: "上悬内开（上铰，特殊构造）"
+          top_in: "上悬内开（上铰，特殊构造）",
+          slide_left: "活动扇向左收拢（室内视）",
+          slide_right: "活动扇向右收拢（室内视）"
         };
     for (const option of [...opening.options]) {
       option.textContent = openingTextByValue[option.value] ?? option.textContent;
-      const valid = topHung
+      const valid = sliding
+        ? option.value === "slide_left" || option.value === "slide_right"
+        : topHung
         ? option.value === "top_in" || option.value === "top_out"
         : option.value === "left_in" || option.value === "right_in" ||
           option.value === "left_out" || option.value === "right_out" ||
@@ -4508,7 +4680,9 @@ export function mountDesignObjectInspector(
       option.disabled = !valid;
     }
     const requested = preferredOpening ?? opening.value;
-    opening.value = topHung
+    opening.value = sliding
+      ? requested === "slide_left" ? "slide_left" : "slide_right"
+      : topHung
       ? requested === "top_in" ? "top_in" : "top_out"
       : fixedDouble
         ? "independent"
@@ -4520,6 +4694,8 @@ export function mountDesignObjectInspector(
     if (openingLabel) {
       openingLabel.firstChild!.textContent = topHung
         ? "开启形式"
+        : sliding
+          ? "推拉方向"
         : fixedDouble
           ? "双扇开向"
           : flyingDouble
@@ -4527,22 +4703,24 @@ export function mountDesignObjectInspector(
             : "开启方向";
     }
     if (openingHint) {
-      openingHint.textContent = flyingDouble
+      openingHint.textContent = sliding
+        ? "方向采用室内视：向左/向右表示活动扇关闭后开启时的收拢方向。当前为中性两扇两轨分配；真实轨槽、滚轮和排水构造由审核目录确定。"
+        : flyingDouble
         ? "开向采用室内标志面；左右表示主动扇位置，两个窗扇仍分别以各自左/右侧为铰轴，内/外表示运动面。"
         : fixedDouble
           ? "固定中梃双扇没有单一左/右开向：左扇左铰、右扇右铰，当前分别独立内开。"
           : "开向采用室内标志面：左开/右开表示铰轴在左/右，内开/外开表示窗扇运动到室内/室外；不使用含糊的“左手/右手”叫法。";
     }
     if (hardware instanceof HTMLInputElement) hardware.disabled = fixed;
-    const supportsTilt = !fixed && !topHung && opening.value.endsWith("_in");
+    const supportsTilt = !fixed && !topHung && !sliding && opening.value.endsWith("_in");
     if (primaryMaximum instanceof HTMLInputElement) {
-      primaryMaximum.disabled = fixed;
+      primaryMaximum.disabled = fixed || sliding;
       if (!preserveConfiguredAngles) {
         primaryMaximum.value = topHung ? "41.3" : "90";
       }
     }
     if (primaryMaximumLabel) {
-      primaryMaximumLabel.hidden = fixed;
+      primaryMaximumLabel.hidden = fixed || sliding;
       const title = primaryMaximumLabel.querySelector<HTMLElement>("[data-angle-title]");
       if (title) title.textContent = topHung ? "上悬最大开启角度（°）" : "平开最大开启角度（°）";
     }
@@ -4551,6 +4729,13 @@ export function mountDesignObjectInspector(
       if (!preserveConfiguredAngles) tiltMaximum.value = "18.3";
     }
     if (tiltMaximumLabel) tiltMaximumLabel.hidden = !supportsTilt;
+    if (slidingOverlap instanceof HTMLInputElement) {
+      slidingOverlap.disabled = !sliding;
+      if (sliding && !preserveConfiguredAngles && !slidingOverlap.value) {
+        slidingOverlap.value = "35";
+      }
+    }
+    if (slidingOverlapLabel) slidingOverlapLabel.hidden = !sliding;
   };
 
   /** Rebuilds the small form when document revision or stable selection changes. */
@@ -4571,7 +4756,7 @@ export function mountDesignObjectInspector(
         card.dataset.inspectorKind = "hardware";
         card.innerHTML = `
           <p class="object-inspector__identity"><strong data-hardware-name></strong><span data-hardware-id></span></p>
-          <p class="object-inspector__hint">当前选中单件五金；尺寸、型号和安装归属均来自该精确生产/渲染对象。</p>
+          <p class="object-inspector__hint">当前选中单件五金；此处显示对应型号、外形尺寸和安装位置。</p>
           <p data-hardware-model></p>
           <p data-hardware-size></p>
           <p data-hardware-mount></p>`;
@@ -4584,8 +4769,9 @@ export function mountDesignObjectInspector(
         if (identity) identity.textContent = mount.hardwareId;
         if (modelLine) {
           modelLine.textContent = model
-            ? `型号：${model.businessName ?? model.modelId} · ${model.modelVersion}`
-            : "型号：未解析";
+            ? `型号：${model.businessName ?? (presentation === "factory-workbench" ? "已关联目录型号" : model.modelId)}` +
+              `${presentation === "factory-workbench" ? "" : ` · ${model.modelVersion}`}`
+            : "型号：未关联";
         }
         if (sizeLine) {
           sizeLine.textContent = model
@@ -4593,10 +4779,14 @@ export function mountDesignObjectInspector(
             : "实际尺寸：未解析";
         }
         if (mountLine) {
-          mountLine.textContent = `安装：${mount.mountTarget} · ${mount.edge} · 归属${mount.mountOwnerPanelId ?? mount.panelId}`;
+          const targetLabel = mount.mountTarget === "frame" ? "窗框" : "窗扇";
+          const edgeLabel = ({ left: "左侧", right: "右侧", top: "上侧", bottom: "下侧" } as const)[mount.edge];
+          mountLine.textContent = presentation === "factory-workbench"
+            ? `安装位置：${targetLabel} · ${edgeLabel}`
+            : `安装：${mount.mountTarget} · ${mount.edge} · 归属${mount.mountOwnerPanelId ?? mount.panelId}`;
         }
         insertProductTemplateNotice(card, window);
-        container.replaceChildren(card);
+        replaceInspectorContent(card);
         return;
       }
       const cellContext = selectedWindowCell(currentDocument, selectedObjectId);
@@ -4608,12 +4798,13 @@ export function mountDesignObjectInspector(
         form.dataset.cellId = cellContext.cell.objectId;
         form.innerHTML = `
           <p class="object-inspector__identity"><strong data-cell-name></strong><span data-cell-id></span></p>
-          <label>构件类型<select name="cellType"><option value="fixed_glass">固定玻璃</option><option value="turn_tilt">平开/内倒窗</option><option value="top_hung">上悬窗</option></select></label>
-          <label>扇型组合<select name="assemblyMode"><option value="single">单扇</option><option value="double_flying">双扇（飞梃）</option><option value="double_fixed">双扇（固定中梃）</option></select></label>
-          <label data-opening-label>开启方向<select name="opening"><option value="left_in">左开内平开（室内视，左铰，可内倒）</option><option value="right_in">右开内平开（室内视，右铰，可内倒）</option><option value="left_out">左开外平开（室内视，左铰）</option><option value="right_out">右开外平开（室内视，右铰）</option><option value="independent">左右独立内平开（左扇左铰，右扇右铰）</option><option value="top_out">上悬外开（上铰）</option><option value="top_in">上悬内开（上铰，特殊构造）</option></select></label>
+          <label>构件类型<select name="cellType"><option value="fixed_glass">固定玻璃</option><option value="turn_tilt">平开/内倒窗</option><option value="top_hung">上悬窗</option><option value="sliding">普通推拉窗</option></select></label>
+          <label>扇型组合<select name="assemblyMode"><option value="single">单扇</option><option value="double_flying">双扇（飞梃）</option><option value="double_fixed">双扇（固定中梃）</option><option value="sliding_standard">两扇两轨（标准）</option></select></label>
+          <label data-opening-label>开启方向<select name="opening"><option value="left_in">左开内平开（室内视，左铰，可内倒）</option><option value="right_in">右开内平开（室内视，右铰，可内倒）</option><option value="left_out">左开外平开（室内视，左铰）</option><option value="right_out">右开外平开（室内视，右铰）</option><option value="independent">左右独立内平开（左扇左铰，右扇右铰）</option><option value="top_out">上悬外开（上铰）</option><option value="top_in">上悬内开（上铰，特殊构造）</option><option value="slide_left">活动扇向左收拢（室内视）</option><option value="slide_right">活动扇向右收拢（室内视）</option></select></label>
           <p class="object-inspector__hint" data-opening-hint>开向采用室内标志面：左开/右开表示铰轴在左/右，内开/外开表示窗扇运动到室内/室外；不使用含糊的“左手/右手”叫法。</p>
           <label data-primary-maximum-label><span data-angle-title>平开最大开启角度（°）</span><input name="primaryMaximumAngleDegrees" type="number" min="1" max="180" step="0.1" required /></label>
           <label data-tilt-maximum-label><span>内倒最大开启角度（°）</span><input name="tiltMaximumAngleDegrees" type="number" min="1" max="90" step="0.1" required /></label>
+          <label data-sliding-overlap-label hidden>相邻扇搭接（mm）<input name="slidingOverlapMm" type="number" min="0" max="300" step="0.1" required disabled /></label>
           <label>五金套系<input name="hardwareSetId" type="text" /></label>
           <p class="object-inspector__hint" data-hardware-summary></p>
           <p class="object-inspector__hint">同一构件模型同时驱动2D、3D、玻璃净尺寸、扇料和五金BOM。</p>
@@ -4627,6 +4818,7 @@ export function mountDesignObjectInspector(
         const hardware = form.elements.namedItem("hardwareSetId");
         const primaryMaximum = form.elements.namedItem("primaryMaximumAngleDegrees");
         const tiltMaximum = form.elements.namedItem("tiltMaximumAngleDegrees");
+        const slidingOverlap = form.elements.namedItem("slidingOverlapMm");
         const hardwareSummary = form.querySelector<HTMLElement>("[data-hardware-summary]");
         const selectedPanel = cellContext.cell.type === "fixed_glass"
           ? undefined
@@ -4645,13 +4837,16 @@ export function mountDesignObjectInspector(
         }
         if (cellType instanceof HTMLSelectElement) cellType.value = cellContext.cell.type;
         if (assemblyMode instanceof HTMLSelectElement) {
-          assemblyMode.value = cellContext.cell.type === "turn_tilt" &&
+          assemblyMode.value = cellContext.cell.type === "sliding"
+            ? "sliding_standard"
+            : cellContext.cell.type === "turn_tilt" &&
             cellContext.cell.openingAssembly.panelCount === 2
             ? cellContext.cell.openingAssembly.mullionMode === "fixed_mullion"
               ? "double_fixed"
               : "double_flying"
             : "single";
-          assemblyMode.disabled = cellContext.cell.type === "fixed_glass" || cellContext.cell.type === "top_hung";
+          assemblyMode.disabled = cellContext.cell.type === "fixed_glass" ||
+            cellContext.cell.type === "top_hung" || cellContext.cell.type === "sliding";
         }
         if (opening instanceof HTMLSelectElement) {
           const fixedDouble = cellContext.cell.type === "turn_tilt" &&
@@ -4659,7 +4854,8 @@ export function mountDesignObjectInspector(
             cellContext.cell.openingAssembly.mullionMode === "fixed_mullion";
           opening.value = fixedDouble
             ? "independent"
-            : cellContext.cell.type === "turn_tilt" || cellContext.cell.type === "top_hung"
+            : cellContext.cell.type === "turn_tilt" || cellContext.cell.type === "top_hung" ||
+                cellContext.cell.type === "sliding"
               ? cellContext.cell.opening
               : "left_in";
           opening.disabled = cellContext.cell.type === "fixed_glass" || fixedDouble;
@@ -4675,17 +4871,30 @@ export function mountDesignObjectInspector(
         );
         if (primaryMaximum instanceof HTMLInputElement) {
           primaryMaximum.value = previewDefinition
-            ? String(Math.round(previewDefinition.maximumAngleDegreesByMode.primary * 10) / 10)
+            ? String(Math.round((previewDefinition.maximumAngleDegreesByMode?.primary ?? 90) * 10) / 10)
             : "90";
         }
         if (tiltMaximum instanceof HTMLInputElement) {
-          tiltMaximum.value = previewDefinition?.maximumAngleDegreesByMode.tilt === undefined
+          tiltMaximum.value = previewDefinition?.maximumAngleDegreesByMode?.tilt === undefined
             ? "18.3"
-            : String(Math.round(previewDefinition.maximumAngleDegreesByMode.tilt * 10) / 10);
+            : String(Math.round(previewDefinition.maximumAngleDegreesByMode!.tilt! * 10) / 10);
+        }
+        if (slidingOverlap instanceof HTMLInputElement) {
+          slidingOverlap.value = cellContext.cell.type === "sliding"
+            ? String(cellContext.cell.openingAssembly.overlapMm)
+            : "35";
         }
         if (hardwareSummary) {
           if (cellContext.cell.type === "fixed_glass") {
             hardwareSummary.textContent = "连接结构：固定构件无开启五金。";
+          } else if (cellContext.cell.type === "sliding") {
+            const activePanel = cellContext.cell.openingAssembly.panels.find(
+              (panel) => panel.movable
+            );
+            hardwareSummary.textContent =
+              `结构：${cellContext.cell.openingAssembly.panelCount}扇${cellContext.cell.openingAssembly.trackCount}轨，` +
+              `${activePanel?.id ?? "活动扇"}${activePanel?.travelDirection === "left" ? "向左" : "向右"}收拢，` +
+              `设计搭接${cellContext.cell.openingAssembly.overlapMm}mm；轨槽、滚轮、密封与排水构造待审核目录。`;
           } else {
             const geometry = resolveWindowGeometry(cellContext.window);
             const mounts = geometry.hardware.filter(
@@ -4727,7 +4936,7 @@ export function mountDesignObjectInspector(
           true
         );
         insertProductTemplateNotice(form, cellContext.window);
-        container.replaceChildren(form);
+        replaceInspectorContent(form);
         return;
       }
       const selectedId = selectedObjectId ? String(selectedObjectId) : "";
@@ -4751,7 +4960,8 @@ export function mountDesignObjectInspector(
           <p>墙体类型：${installation.surround.wallMaterialId}</p>
           <p>框位：${installation.surround.frameAlignment} / ${installation.surround.frameOffsetMm} mm</p>`;
         const identity = card.querySelector("span");
-        if (identity) identity.textContent = selectedId;
+        if (identity && presentation === "technical") identity.textContent = selectedId;
+        else if (identity) identity.hidden = true;
         container.replaceChildren(card);
         return;
       }
@@ -4800,7 +5010,7 @@ export function mountDesignObjectInspector(
         if (outerWidth instanceof HTMLInputElement) {
           outerWidth.value = inspectorMillimetres(outerWidthMm);
         }
-        container.replaceChildren(form);
+        replaceInspectorContent(form);
         return;
       }
       /**
@@ -4859,7 +5069,9 @@ export function mountDesignObjectInspector(
                 <label>俯视转向<select name="cornerTurn"><option value="clockwise">顺时针</option><option value="counterclockwise">逆时针</option></select></label>
               </div>` : ""}
             <label>连接范围<select name="factoryScope"><option value="factory">工厂连接</option><option value="site">现场连接</option></select></label>
-            <p class="object-inspector__hint">设计人员选择连接件型号；类型、成品宽度和制造规则由该目录版本带入并冻结。当前为DoorMes参考目录，企业正式目录导入前不得视为审核生产数据。</p>
+            <p class="object-inspector__hint">${presentation === "factory-workbench"
+              ? "选择连接件目录型号后会带入对应规格；当前为参考选型，需企业正式型号确认后才能用于生产。"
+              : "设计人员选择连接件型号；类型、成品宽度和制造规则由该目录版本带入并冻结。当前为DoorMes参考目录，企业正式目录导入前不得视为审核生产数据。"}</p>
             <button class="shell-button" type="submit">应用连接设置</button>`;
           const name = form.querySelector<HTMLElement>("[data-joint-name]");
           const id = form.querySelector<HTMLElement>("[data-joint-id]");
@@ -4893,10 +5105,14 @@ export function mountDesignObjectInspector(
           }
           if (summary) {
             summary.textContent = inferredCatalogSelection
-              ? `${inferredCatalogSelection.specification}；制造映射 ${inferredCatalogSelection.manufacturingRuleId}@${inferredCatalogSelection.manufacturingRuleVersion}`
-              : `旧项目自定义连接：${typeLabel}，成品宽度 ${inspectorMillimetres(joint.gapMm)}mm；请选择目录型号完成版本冻结。`;
+              ? presentation === "factory-workbench"
+                ? `${inferredCatalogSelection.businessName} · ${inferredCatalogSelection.specification}；成品宽度 ${inspectorMillimetres(joint.gapMm)} mm`
+                : `${inferredCatalogSelection.specification}；制造映射 ${inferredCatalogSelection.manufacturingRuleId}@${inferredCatalogSelection.manufacturingRuleVersion}`
+              : presentation === "factory-workbench"
+                ? `旧项目自定义连接：${typeLabel}，成品宽度 ${inspectorMillimetres(joint.gapMm)} mm；请选择目录中的连接件型号。`
+                : `旧项目自定义连接：${typeLabel}，成品宽度 ${inspectorMillimetres(joint.gapMm)}mm；请选择目录型号完成版本冻结。`;
           }
-          container.replaceChildren(form);
+          replaceInspectorContent(form);
           return;
         }
         const card = document.createElement("section");
@@ -4912,7 +5128,7 @@ export function mountDesignObjectInspector(
         hint.className = "object-inspector__hint";
         hint.textContent = `当前组合包含${assemblySelection.instances.length}樘窗；请选择具体窗单元实例后再修改尺寸或删除窗。`;
         card.append(identity, hint);
-        container.replaceChildren(card);
+        replaceInspectorContent(card);
         return;
       }
       const window = installationWindow;
@@ -4929,7 +5145,7 @@ export function mountDesignObjectInspector(
             <label>总高（mm）<input name="heightMm" type="number" min="100" max="20000" step="0.1" required /></label>
           </div>
           <p class="object-inspector__hint">编号用于图面、工厂表格和业务追溯；产品模板与型号另行维护。同一设计内编号不可重复。</p>
-          <p class="object-inspector__identity"><strong>工厂图组成件备注</strong><span>用户维护</span></p>
+          <p class="object-inspector__identity"><strong>工厂图组成件备注</strong><span data-business-label>用户维护</span></p>
           <label>型材备注<textarea name="profileRemark" rows="2" maxlength="500"></textarea></label>
           <label>玻璃备注<textarea name="glassRemark" rows="2" maxlength="500"></textarea></label>
           <label>五金备注<textarea name="hardwareRemark" rows="2" maxlength="500"></textarea></label>
@@ -4963,7 +5179,7 @@ export function mountDesignObjectInspector(
         if (hardwareRemark instanceof HTMLTextAreaElement) hardwareRemark.value = remarks.hardware;
         if (surroundRemark instanceof HTMLTextAreaElement) surroundRemark.value = remarks.surround;
         insertProductTemplateNotice(form, window);
-        container.replaceChildren(form);
+        replaceInspectorContent(form);
         return;
       }
       const status = document.createElement("p");
@@ -5001,8 +5217,16 @@ export function mountDesignObjectInspector(
     const connectionStart = form.elements.namedItem("connectionStart");
     const connectionEnd = form.elements.namedItem("connectionEnd");
     const note = form.elements.namedItem("note");
-    if (memberName) memberName.textContent = context.member.objectId;
-    if (hostName) hostName.textContent = `宿主：${context.member.hostRegionId}`;
+    if (memberName) {
+      memberName.textContent = presentation === "factory-workbench"
+        ? `${context.window.mark} · ${context.member.orientation === "horizontal" ? "横向中梃" : "竖向中梃"}`
+        : context.member.objectId;
+    }
+    if (hostName) {
+      hostName.textContent = presentation === "factory-workbench"
+        ? "所属窗体构件"
+        : `宿主：${context.member.hostRegionId}`;
+    }
     if (orientation instanceof HTMLSelectElement) orientation.value = context.member.orientation;
     if (throughMode instanceof HTMLSelectElement) throughMode.value = context.member.throughMode;
     if (profileId instanceof HTMLInputElement) profileId.value = context.member.profileId;
@@ -5012,13 +5236,44 @@ export function mountDesignObjectInspector(
     if (connectionEnd instanceof HTMLSelectElement) connectionEnd.value = context.member.connectionEnd;
     if (note instanceof HTMLTextAreaElement) note.value = context.member.note;
     insertProductTemplateNotice(form, context.window);
-    container.replaceChildren(form);
+    replaceInspectorContent(form);
     refreshDependentFields(form, true);
   };
 
   /** Reprojects member ratios when orientation or through mode changes in-place. */
   const onChange = (event: Event): void => {
     const target = event.target;
+    if (target instanceof HTMLInputElement && (
+      target.dataset.factoryDrawingOption || target.dataset.factoryDrawingNumber
+    )) {
+      const group = target.closest<HTMLElement>("[data-factory-drawing-object-id]");
+      const objectId = group?.dataset.factoryDrawingObjectId;
+      const number = group?.querySelector<HTMLInputElement>(
+        "[data-factory-drawing-number]"
+      );
+      const dimensions = group?.querySelector<HTMLInputElement>(
+        '[data-factory-drawing-option="dimensions"]'
+      );
+      const table = group?.querySelector<HTMLInputElement>(
+        '[data-factory-drawing-option="table"]'
+      );
+      if (!objectId || !number || !dimensions || !table) return;
+      commandSequence += 1;
+      try {
+        number.setCustomValidity("");
+        session.execute(createUpdateFactoryDrawingElementOptionsCommand({
+          commandId: `CMD-FACTORY-DRAWING-OPTIONS-${session.document.revision}-${commandSequence}`,
+          objectId,
+          factoryDrawingNumber: number.value,
+          showDimensions: dimensions.checked,
+          showInComponentTable: table.checked
+        }));
+      } catch (error) {
+        number.setCustomValidity(error instanceof Error ? error.message : "工厂图编号无效");
+        number.reportValidity();
+      }
+      return;
+    }
     const form = target instanceof Element ? target.closest<HTMLFormElement>("form") : null;
     if (!form) return;
     if (
@@ -5054,7 +5309,9 @@ export function mountDesignObjectInspector(
       const selection = requireEngineeringJointCatalogSelection(target.value);
       const summary = form.querySelector<HTMLElement>("[data-joint-catalog-summary]");
       if (summary) {
-        summary.textContent = `${selection.specification}；制造映射 ${selection.manufacturingRuleId}@${selection.manufacturingRuleVersion}`;
+        summary.textContent = presentation === "factory-workbench"
+          ? `${selection.businessName} · ${selection.specification}`
+          : `${selection.specification}；制造映射 ${selection.manufacturingRuleId}@${selection.manufacturingRuleVersion}`;
       }
       const scope = form.elements.namedItem("factoryScope");
       if (scope instanceof HTMLSelectElement) {
@@ -5077,6 +5334,8 @@ export function mountDesignObjectInspector(
       const hardware = form.elements.namedItem("hardwareSetId");
       if (target.value === "top_hung" && hardware instanceof HTMLInputElement) {
         hardware.value = "HW-HUNG-STD";
+      } else if (target.value === "sliding" && hardware instanceof HTMLInputElement) {
+        hardware.value = "HW-SLIDE-STD";
       }
       syncCellOpeningControls(form);
     } else if (target instanceof HTMLSelectElement && target.name === "assemblyMode") {
@@ -5278,10 +5537,17 @@ export function mountDesignObjectInspector(
         ? "turn_tilt"
         : values.get("cellType") === "top_hung"
           ? "top_hung"
+          : values.get("cellType") === "sliding"
+            ? "sliding"
           : "fixed_glass";
       const requestedOpening = values.get("opening");
+      const slidingOpening = requestedOpening === "slide_left"
+        ? "slide_left" as const
+        : "slide_right" as const;
       const opening = cellType === "fixed_glass"
         ? "fixed"
+        : cellType === "sliding"
+          ? slidingOpening
         : cellType === "top_hung"
           ? requestedOpening === "top_in" ? "top_in" : "top_out"
         : requestedOpening === "right_in"
@@ -5300,6 +5566,10 @@ export function mountDesignObjectInspector(
         (assemblyMode === "double_flying" || assemblyMode === "double_fixed") ? 2 : 1;
       const primaryMaximumAngleDegrees = Number(values.get("primaryMaximumAngleDegrees"));
       const tiltMaximumAngleDegrees = Number(values.get("tiltMaximumAngleDegrees"));
+      const slidingOverlapMm = Number(values.get("slidingOverlapMm"));
+      const slidingOpenPercent = cellContext.cell.type === "sliding"
+        ? cellContext.cell.openingAssembly.openPercent
+        : 80;
       commandSequence += 1;
       session.execute(
         createSetWindowCellOpeningCommand({
@@ -5311,14 +5581,21 @@ export function mountDesignObjectInspector(
           panelCount,
           mullionMode: assemblyMode === "double_flying" ? "flying_mullion" : "fixed_mullion",
           hardwareSetId: String(values.get("hardwareSetId") ?? ""),
-          maximumAngleDegreesByMode: cellType === "fixed_glass"
+          maximumAngleDegreesByMode: cellType === "fixed_glass" || cellType === "sliding"
             ? undefined
             : {
                 primary: primaryMaximumAngleDegrees,
                 ...(cellType === "turn_tilt" && opening.endsWith("_in")
                   ? { tilt: tiltMaximumAngleDegrees }
                   : {})
-              }
+              },
+          slidingConfiguration: cellType === "sliding"
+            ? createStandardSlidingConfiguration(
+                slidingOpening,
+                slidingOverlapMm,
+                slidingOpenPercent
+              )
+            : undefined
         })
       );
       return;
@@ -5412,8 +5689,15 @@ export function mountDesignObjectInspector(
   };
 }
 
-/** Presentation selected by the shell while behavior and commands stay shared. */
-export type AppearanceEditorPresentation = "desktop-panel" | "mobile-steps";
+/**
+ * Presentation selected by the shell while catalog application and commands
+ * stay shared. The factory workbench exposes business selections only; the
+ * advanced variants retain developer-facing render/model configuration tools.
+ */
+export type AppearanceEditorPresentation =
+  | "desktop-panel"
+  | "mobile-steps"
+  | "factory-workbench";
 
 /** Structural history entry supplied by a local or future remote adapter. */
 export interface AppearanceEditorVisualHistoryEntry {
@@ -5749,6 +6033,7 @@ export function mountWindowAppearanceEditor(
 
   /** Rebuilds forms from the latest immutable document and selected window. */
   const render = (): void => {
+    const isFactoryWorkbench = presentation === "factory-workbench";
     const window = editingWindow();
     if (!window) {
       const empty = document.createElement("p");
@@ -5812,17 +6097,20 @@ export function mountWindowAppearanceEditor(
     });
     const root = document.createElement("section");
     root.className = "appearance-editor__content";
+    if (isFactoryWorkbench) root.classList.add("appearance-editor__content--factory");
     root.innerHTML = `
       <header class="appearance-editor__header">
         <strong data-editor-window-name></strong>
-        <span data-editor-window-id></span>
+        <span data-editor-window-id${isFactoryWorkbench ? " hidden" : ""}></span>
       </header>
       <nav class="appearance-editor__steps" aria-label="材质与型号编辑步骤">
-        <button type="button" data-editor-step="appearance" aria-pressed="${activeStep === "appearance"}">1 材质外观</button>
-        <button type="button" data-editor-step="hardware" aria-pressed="${activeStep === "hardware"}">2 五金型号</button>
-        <button type="button" data-editor-step="import" aria-pressed="${activeStep === "import"}">3 模型导入</button>
+        <button type="button" data-editor-step="appearance" aria-pressed="${activeStep === "appearance"}">${isFactoryWorkbench ? "材质 / 玻璃" : "1 材质外观"}</button>
+        <button type="button" data-editor-step="hardware" aria-pressed="${activeStep === "hardware"}">${isFactoryWorkbench ? "五金型号" : "2 五金型号"}</button>
+        ${isFactoryWorkbench ? "" : `<button type="button" data-editor-step="import" aria-pressed="${activeStep === "import"}">3 模型导入</button>`}
       </nav>
-      <p class="appearance-editor__hint">当前为迁移期高级目录/渲染参数工具。正式设计选型将只显示业务材质、玻璃和五金型号；PBR、UV、哈希、模型轴向及生产映射由独立目录维护功能管理。</p>
+      ${isFactoryWorkbench
+        ? `<p class="appearance-editor__factory-guidance">在此选择设计使用的材质、玻璃和五金型号；选择结果会同步预览2D/3D。渲染参数和模型资产维护不属于工厂设计操作。</p>`
+        : `<p class="appearance-editor__hint">当前为迁移期高级目录/渲染参数工具。正式设计选型将只显示业务材质、玻璃和五金型号；PBR、UV、哈希、模型轴向及生产映射由独立目录维护功能管理。</p>`}
       ${activeSlot === "surroundOutside" || activeSlot === "surroundInside" || activeSlot === "surroundLiner" ? `
       <section class="appearance-editor__history" data-surround-business-selector>
         <strong>安装包边/衬板型号（不修改墙体）</strong>
@@ -5835,10 +6123,10 @@ export function mountWindowAppearanceEditor(
         <span>选择后立即启用并更新2D、3D、包边、衬板、转角件和密封材料；宽度与安装边仍按当前绘图参数。</span>
       </section>
       ` : ""}
-      <div class="appearance-editor__preview-status" role="status">
+      <div class="appearance-editor__preview-status" role="status"${isFactoryWorkbench ? " hidden" : ""}>
         <span data-visual-preview-status>修改有效参数时同步预览2D/3D；保存前不写入设计、BOM或撤销历史。</span>
         <button type="button" data-clear-visual-preview>还原草稿</button>
-      </div>
+      </div>${isFactoryWorkbench ? "" : `
       <section class="appearance-editor__history" data-visual-history>
         <strong>本地历史版本</strong>
         <select data-visual-history-entry aria-label="选择本地材质与型号版本"></select>
@@ -5847,8 +6135,37 @@ export function mountWindowAppearanceEditor(
           <button type="button" data-restore-visual-history>恢复为当前版本</button>
         </div>
         <span data-visual-history-status></span>
-      </section>
-      <form class="appearance-editor__form" data-appearance-form${activeStep === "appearance" ? "" : " hidden"}>
+      </section>`}
+      ${isFactoryWorkbench ? `
+      <form class="appearance-editor__form appearance-editor__factory-form" data-factory-appearance-form${activeStep === "appearance" ? "" : " hidden"}>
+        <label>应用部位<select name="slot">${WINDOW_APPEARANCE_EDITOR_SLOTS.map((slot) =>
+          `<option value="${slot}"${slot === activeSlot ? " selected" : ""}>${APPEARANCE_SLOT_LABELS[slot]}</option>`).join("")}</select></label>
+        <label>业务材质 / 玻璃型号<select name="appearancePresetId">
+          <option value="">当前选型未关联目录型号</option>
+          ${appearancePresets.map((preset) =>
+            `<option value="${preset.presetId}"${preset.presetId === selectedAppearancePresetId ? " selected" : ""}>${preset.label}</option>`).join("")}
+        </select></label>
+        <p class="appearance-editor__factory-guidance">${selectedAppearancePresetId
+          ? `当前目录选型：${appearancePresets.find((preset) => preset.presetId === selectedAppearancePresetId)?.label ?? "已关联"}`
+          : "当前外观尚未关联到目录型号；可继续设计预览，不能据此认定为正式物料。"}</p>
+      </form>
+      <form class="appearance-editor__form appearance-editor__factory-form" data-factory-hardware-form${activeStep === "hardware" ? "" : " hidden"}>
+        <label>五金类别<select name="role">${HARDWARE_EDITOR_ROLES.map((role) =>
+          `<option value="${role}"${role === activeRole ? " selected" : ""}>${HARDWARE_ROLE_LABELS[role]}</option>`).join("")}</select></label>
+        <label>应用范围<select name="hardwareTargetScope">
+          <option value="role"${targetHardwareId ? "" : " selected"}>该类别全部构件</option>
+          ${selectedMount?.role === activeRole
+            ? `<option value="instance"${targetHardwareId ? " selected" : ""}>仅当前五金构件</option>`
+            : ""}
+        </select></label>
+        <label>五金业务型号<select name="hardwarePresetId">
+          <option value="">当前型号未关联目录</option>
+          ${hardwarePresets.map((preset) =>
+            `<option value="${preset.presetId}"${preset.presetId === selectedHardwarePresetId ? " selected" : ""}>${preset.label} · ${preset.model.materialCode ?? "仅预览"}</option>`).join("")}
+        </select></label>
+        <p class="appearance-editor__factory-guidance">选择目录型号后会更新设计预览；仅预览或待审核选型不代表可下单生产。</p>
+      </form>` : ""}
+      <form class="appearance-editor__form" data-appearance-form${isFactoryWorkbench || activeStep !== "appearance" ? " hidden" : ""}>
         <label>编辑对象<select name="slot">${WINDOW_APPEARANCE_EDITOR_SLOTS.map((slot) =>
           `<option value="${slot}">${APPEARANCE_SLOT_LABELS[slot]}</option>`).join("")}</select></label>
         <label>受控目录预设<select name="appearancePresetId">
@@ -5878,7 +6195,7 @@ export function mountWindowAppearanceEditor(
         <p class="appearance-editor__hint" data-surface-production-status></p>
         <button class="shell-button" type="submit">应用材质外观</button>
       </form>
-      <form class="appearance-editor__form" data-hardware-model-form${activeStep === "hardware" ? "" : " hidden"}>
+      <form class="appearance-editor__form" data-hardware-model-form${isFactoryWorkbench || activeStep !== "hardware" ? " hidden" : ""}>
         <label>五金构件类型<select name="role">${HARDWARE_EDITOR_ROLES.map((role) =>
           `<option value="${role}">${HARDWARE_ROLE_LABELS[role]}</option>`).join("")}</select></label>
         <label>应用范围<select name="hardwareTargetScope">
@@ -5916,7 +6233,7 @@ export function mountWindowAppearanceEditor(
           : ""}
         <button class="shell-button" type="submit">应用五金型号</button>
       </form>
-      <form class="appearance-editor__form" data-managed-model-import-form${activeStep === "import" ? "" : " hidden"}>
+      <form class="appearance-editor__form" data-managed-model-import-form${isFactoryWorkbench || activeStep !== "import" ? " hidden" : ""}>
         <p class="appearance-editor__hint">此处只接收资产服务返回的受控ID与SHA-256，不接收网址。导入结果为“仅预览”，审核发布后才能取得物资编码和加工模板。</p>
         <label>五金构件类型<select name="role">${HARDWARE_EDITOR_ROLES.map((role) =>
           `<option value="${role}">${HARDWARE_ROLE_LABELS[role]}</option>`).join("")}</select></label>
@@ -5977,7 +6294,7 @@ export function mountWindowAppearanceEditor(
           : ""}
         <button class="shell-button" type="submit">预检、保存并导入</button>
       </form>
-      <section class="appearance-editor__diagnostics" aria-live="polite">
+      <section class="appearance-editor__diagnostics" aria-live="polite"${isFactoryWorkbench ? " hidden" : ""}>
         <strong>资产诊断</strong>
         <ul data-asset-diagnostic-list></ul>
       </section>
