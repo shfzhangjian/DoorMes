@@ -1,0 +1,37 @@
+{
+  "scenarioId":"M1-DRAW","version":1,"date":"2026-10-02","executionMode":"HTTP, SQL, files and shared geometry validation; no browser",
+  "S":{
+    "objective":"销售定制需求经研发领用，按稳定明细 ID 建图、修改、保存及历史加载；无效几何与无权保存拒绝。",
+    "environment":{"workspace":"E:/doorMES_v1/LUCK-MES-HC-0","database":"doormes_local","tenantId":1,"baseUrl":"http://localhost:5180","backendPort":48082,"profile":"local,doormes"},
+    "accounts":[{"username":"sales","id":1002,"role":"factory_sales","departmentId":1003},{"username":"design","id":1003,"role":"factory_design","departmentId":1004},{"username":"reviewer","id":1007,"role":"factory_reviewer","departmentId":1008}],
+    "scope":"企业范围读取，保存限制领用人/管理员；跨租户以 H2 测试验证。",
+    "preserve":["原系统","原库","用户组织和基础菜单","人工需求和图纸","旧绘图原型"]
+  },
+  "O":{
+    "preconditions":[{"id":"PRE-01","operation":"确认前端5180、后端48082健康、V002、实际权限及专用6381缓存。"},{"id":"PRE-02","operation":"真实登录三个测试账号；密码与令牌仅内存使用。"}],
+    "data":[{"id":"DATA-01","operation":"生成唯一 TEST-M1-DRAW-时间-随机后缀需求，C1 两樘1200×1500，自由文本材料要求。"}],
+    "actions":[
+      {"id":"ACT-01","actor":"sales","menu":"门窗业务/订单与设计需求","operation":"新建、提交需求"},
+      {"id":"ACT-02","actor":"design","menu":"门窗业务/研发需求工作台","operation":"领用、打开C1明细图纸；重复打开不得创建重复图纸"},
+      {"id":"ACT-03","actor":"design","operation":"修改宽度1250并保存R2，读取R1对比"},
+      {"id":"ACT-04","actor":"design","operation":"过期版本、无效宽度、重复内部ID、篡改designId和错误明细拒绝检查"},
+      {"id":"ACT-05","actor":"sales/reviewer","operation":"图纸允许读取，保存权限拒绝"},
+      {"id":"ACT-06","actor":"design","operation":"核对需求基线不变、两个图纸版本及SQL/File SHA-256"}
+    ]
+  },
+  "A":{
+    "expected":{"sourceRequirement":"R3 IN_DESIGN assignedTo1003，宽1200","drawingR1":"宽1200数量2","drawingR2":"宽1250，内部ID与明细关联不变","repeatOpen":"同一图纸ID，不增加版本","invalidSaves":"当前R2保持不变"},
+    "tables":["dm_design_requirement","dm_design_requirement_version","dm_drawing","dm_drawing_version"],
+    "fileRule":"runtime-local/design-data/drawings/tenant-1/<UUID>/rN.json",
+    "negativeCodes":{"badGeometry":400,"unauthorizedSave":403,"missingLine":404,"staleRevision":409},
+    "uiStatus":"人工验证留空；静态与HTTP检查不等于视觉交互验证。"
+  },
+  "P":{
+    "runCommand":"scripts/verify-doormes-drawings.ps1",
+    "evidence":["manifest.json","source-requirement.json","drawing-r1.json","drawing-r2.json","database-evidence.txt","scenario-case.json"],
+    "cleanup":[{"id":"CLEAN-01","operation":"scripts/archive-doormes-requirement-test.ps1 -ScenarioDirectory 本次运行目录 -Apply：仅清理此TEST需求及关联图纸，先备份JSON和恢复SQL。"}],
+    "archive":[{"id":"ARCH-01","operation":"保留JSON、SQL元数据、恢复脚本、断言及清理清单。"}],
+    "manualVerification":{"result":"","tester":"","time":"","notes":""},
+    "remainingRisks":["模型/纹理上传的真实后端接口未接入","材料自由文本不能替代受控目录选型","正式发布与审核生产变更未接入","企业读取范围尚非项目级权限"]
+  }
+}

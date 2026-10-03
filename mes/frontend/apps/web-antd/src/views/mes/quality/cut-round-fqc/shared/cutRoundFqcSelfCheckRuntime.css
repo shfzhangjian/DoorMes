@@ -1,0 +1,36 @@
+.station-form-runtime-fullscreen-modal:has(
+    .station-form-runtime.cut-round-fqc-self-check-runtime
+  )
+  .runtime-fullscreen__title
+  > span {
+  display: none;
+}
+
+.station-form-runtime.cut-round-fqc-self-check-runtime > .station-form-runtime__toolbar {
+  display: none;
+}
+
+.station-form-runtime.cut-round-fqc-self-check-runtime > .station-form-runtime__body {
+  padding-top: 8px;
+}
+
+.station-form-runtime.cut-round-fqc-self-check-runtime
+  .station-form-runtime__formula-head-grid--compact
+  .station-form-runtime__formula-head-item {
+  grid-template-columns: 92px minmax(0, 1fr);
+}
+
+.station-form-runtime.cut-round-fqc-self-check-runtime
+  .station-form-runtime__formula-head-value
+  .ant-input,
+.station-form-runtime.cut-round-fqc-self-check-runtime
+  .station-form-runtime__formula-head-value
+  .ant-picker {
+  width: 100%;
+  min-width: 0;
+}
+
+.station-form-runtime.cut-round-fqc-self-check-runtime
+  .station-form-runtime__formula-action {
+  display: none;
+}

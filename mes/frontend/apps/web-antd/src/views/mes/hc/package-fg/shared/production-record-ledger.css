@@ -1,0 +1,104 @@
+.production-record-ledger-modal .ant-modal-content {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #9aa8b9;
+  border-radius: 4px;
+  box-shadow: 0 14px 36px rgb(15 23 42 / 18%);
+}
+
+.production-record-ledger-modal .ant-modal-header {
+  min-height: 48px;
+  padding: 13px 18px;
+  margin: 0;
+  background: #eef2f7;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.production-record-ledger-modal .ant-modal-title {
+  color: #1f2937;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.production-record-ledger-modal .ant-modal-close {
+  top: 8px;
+  right: 10px;
+  border-radius: 2px;
+}
+
+.production-record-ledger-modal .ant-modal-body {
+  max-height: calc(100vh - 190px);
+  padding: 18px;
+  overflow-y: auto;
+  background: #fff;
+}
+
+.production-record-ledger-modal .ant-modal-footer {
+  padding: 10px 18px;
+  margin: 0;
+  background: #f8fafc;
+  border-top: 1px solid #cbd5e1;
+}
+
+.production-record-ledger-modal .ant-modal-footer .ant-btn {
+  min-width: 84px;
+  height: 34px;
+  border-radius: 2px;
+}
+
+.production-record-ledger-form {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 120px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+}
+
+.production-record-ledger-form > label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 34px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.production-record-ledger-form .ant-input,
+.production-record-ledger-form .ant-input-affix-wrapper,
+.production-record-ledger-form .ant-input-number,
+.production-record-ledger-form .ant-picker,
+.production-record-ledger-form .ant-select,
+.production-record-ledger-form .ant-select-selector {
+  width: 100% !important;
+  min-height: 34px;
+  border-radius: 2px !important;
+}
+
+.production-record-ledger-form textarea.ant-input {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.production-record-ledger-form .ledger-picker-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+}
+
+.production-record-ledger-form .ledger-picker-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 2px;
+}
+
+@media (max-width: 900px) {
+  .production-record-ledger-form {
+    grid-template-columns: 104px minmax(0, 1fr);
+  }
+}

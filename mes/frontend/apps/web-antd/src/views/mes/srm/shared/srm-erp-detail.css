@@ -1,0 +1,520 @@
+.qms-abnormal-workbench-modal .ant-modal-body {
+  height: 100%;
+  overflow: hidden;
+}
+
+.qms-ncr-erp-modal .ant-modal-content {
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 10px 26px rgb(15 23 42 / 18%);
+}
+
+.qms-abnormal-workbench-modal .ant-modal-header,
+.qms-abnormal-workbench-modal .ant-modal-close,
+.qms-abnormal-workbench-modal .vben-modal-header,
+.qms-ncr-erp-modal .ant-modal-header,
+.qms-ncr-erp-modal .ant-modal-close {
+  display: none !important;
+}
+
+.qms-ncr-erp-modal .ant-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid #cbd5e1;
+  background: #f5f7fa;
+  padding: 8px 10px;
+}
+
+.srm-erp-crud-modal [class*='modal__header'],
+.srm-erp-crud-modal .ant-modal-header {
+  display: none !important;
+}
+
+.srm-erp-crud-modal [class*='modal__body'],
+.srm-erp-crud-modal .ant-modal-body {
+  height: 100dvh !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: #eef2f6;
+}
+
+.srm-erp-crud-modal [class*='modal__content'],
+.srm-erp-crud-modal .ant-modal-content {
+  height: 100dvh !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.srm-independent-detail-modal .ant-modal {
+  top: 0;
+  width: 100vw !important;
+  max-width: none;
+  margin: 0;
+  padding-bottom: 0;
+}
+
+.srm-independent-detail-modal .ant-modal-content {
+  height: 100dvh;
+  border-radius: 0;
+}
+
+.srm-independent-detail-modal .ant-modal-body,
+.srm-independent-detail-host {
+  height: 100%;
+  min-height: 0;
+}
+
+.srm-independent-detail-host {
+  position: relative;
+  isolation: isolate;
+}
+
+.srm-erp-crud-modal .ant-spin-nested-loading,
+.srm-erp-crud-modal .ant-spin-container {
+  height: 100%;
+  min-height: 0;
+}
+
+.srm-erp-crud-modal .ant-spin-container {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.srm-erp-crud-modal .qms-ncr-detail {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(30, 41, 59, 0.04) 1px, transparent 1px) 0 0 /
+      28px 28px,
+    linear-gradient(0deg, rgba(30, 41, 59, 0.04) 1px, transparent 1px) 0 0 /
+      28px 28px,
+    #f5f7fa;
+  color: #1f2937;
+}
+
+.srm-erp-crud-modal .qms-ncr-toolbar {
+  display: grid;
+  min-height: 72px;
+  flex-shrink: 0;
+  grid-template-columns:
+    minmax(260px, 1fr)
+    minmax(360px, 720px)
+    minmax(320px, 1fr);
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #cbd5e1;
+  background: linear-gradient(180deg, #f7fbff 0%, #e8f1fb 100%);
+  padding: 8px 14px;
+}
+
+.srm-erp-crud-modal .qms-ncr-toolbar__placeholder,
+.srm-erp-crud-modal .qms-ncr-toolbar__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.srm-erp-crud-modal .qms-ncr-toolbar__actions {
+  min-width: max-content;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  justify-self: end;
+}
+
+.srm-erp-crud-modal .qms-ncr-title-panel {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.srm-erp-crud-modal .qms-ncr-title-panel__name {
+  max-width: 100%;
+  overflow: hidden;
+  color: #075985;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srm-erp-crud-modal .qms-ncr-title-panel__subtitle {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 12px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.srm-erp-crud-modal .qms-ncr-title-panel__subtitle-item {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srm-erp-crud-modal .qms-ncr-toolbar-action.ant-btn {
+  display: inline-flex;
+  min-width: 56px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 12px;
+  line-height: 1;
+}
+
+.srm-erp-crud-modal .qms-ncr-toolbar-action span {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srm-erp-crud-modal .detail-spin {
+  display: block;
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+}
+
+.srm-erp-crud-modal .detail-content {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0%;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.srm-erp-crud-modal .qms-exception-workbench {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow: auto;
+}
+
+.srm-erp-crud-modal .qms-exception-form {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 12px;
+}
+
+.srm-erp-crud-modal .erp-basic-form {
+  margin: 0;
+  overflow: auto;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+.srm-erp-crud-modal .detail-list-head {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 8px 12px;
+}
+
+.srm-erp-crud-modal .detail-list-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.srm-erp-crud-modal .detail-list-title strong {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.srm-erp-crud-modal .erp-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #e2e8f0;
+  border-left: 1px solid #e2e8f0;
+}
+
+.srm-erp-crud-modal .erp-form-item {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 110px minmax(0, 1fr);
+}
+
+.srm-erp-crud-modal .erp-form-item--full {
+  grid-column: 1 / -1;
+}
+
+.srm-erp-crud-modal .erp-form-item--wide {
+  grid-column: span 2;
+}
+
+.srm-erp-crud-modal .erp-form-label,
+.srm-erp-crud-modal .erp-form-value {
+  min-height: 40px;
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 9px 10px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.srm-erp-crud-modal .erp-form-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.srm-erp-crud-modal .erp-form-label--tall {
+  min-height: 84px !important;
+}
+
+.srm-erp-crud-modal .erp-form-value {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  overflow-wrap: anywhere;
+  background: #fff;
+  color: #111827;
+}
+
+.srm-erp-crud-modal .erp-form-value .ant-input,
+.srm-erp-crud-modal .erp-form-value .ant-select,
+.srm-erp-crud-modal .erp-form-value .ant-picker,
+.srm-erp-crud-modal .erp-form-value .ant-input-number {
+  width: 100%;
+}
+
+.srm-erp-crud-modal .erp-form-value .ant-input,
+.srm-erp-crud-modal .erp-form-value .ant-select-selector,
+.srm-erp-crud-modal .erp-form-value .ant-picker,
+.srm-erp-crud-modal .erp-form-value .ant-input-number {
+  border-radius: 4px;
+}
+
+.srm-erp-crud-modal .qms-exception-readonly-value {
+  width: 100%;
+  overflow: hidden;
+  color: #334155;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srm-erp-crud-modal .qms-exception-readonly-value--multiline {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.srm-erp-crud-modal .qms-exception-linked-ncr {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.srm-erp-crud-modal .qms-exception-linked-ncr .ant-input-affix-wrapper {
+  min-width: 0;
+  flex: 1;
+}
+
+.srm-erp-crud-modal .qms-exception-linked-ncr > .ant-btn {
+  flex-shrink: 0;
+}
+
+.srm-erp-crud-modal .qms-exception-inline-icon-btn.ant-btn {
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  color: #64748b;
+}
+
+.srm-erp-crud-modal .qms-exception-inline-icon-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.srm-erp-crud-modal .srm-reference-picker .ant-input-affix-wrapper {
+  width: 100%;
+  cursor: pointer;
+}
+
+.srm-erp-crud-modal .srm-reference-picker .ant-input[readonly] {
+  cursor: pointer;
+  background: #fff;
+}
+
+.srm-erp-crud-modal .srm-url-input {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.srm-erp-crud-modal .srm-url-input__field {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+.srm-erp-crud-modal .srm-url-input .ant-btn {
+  flex: 0 0 auto;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel {
+  margin-top: 12px;
+  border: 1px solid #dbe3ee;
+  background: #fff;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel__summary {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel .ant-upload-wrapper {
+  display: block;
+  padding: 12px;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel .ant-upload-drag {
+  border-radius: 4px;
+  background: #f8fafc;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel__drop {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #475569;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel__drop svg {
+  width: 26px;
+  height: 26px;
+  color: #2563eb;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel__drop-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel__drop-desc,
+.srm-erp-crud-modal .srm-attachment-panel__empty {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel__readonly {
+  padding: 12px;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel__link {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: #2563eb;
+  background: #f8fafc;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel__link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srm-erp-crud-modal .srm-attachment-panel__actions {
+  border-top: 1px solid #e2e8f0;
+  padding: 4px 12px 8px;
+  text-align: right;
+}
+
+@media (max-width: 1100px) {
+  .srm-erp-crud-modal .qms-ncr-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 10px 12px;
+  }
+
+  .srm-erp-crud-modal .qms-ncr-toolbar__placeholder,
+  .srm-erp-crud-modal .qms-ncr-title-panel,
+  .srm-erp-crud-modal .qms-ncr-toolbar__actions {
+    justify-content: center;
+    justify-self: center;
+    text-align: center;
+  }
+
+  .srm-erp-crud-modal .qms-ncr-toolbar__actions {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .srm-erp-crud-modal .erp-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .srm-erp-crud-modal .erp-form-item {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .srm-erp-crud-modal .erp-form-item--full {
+    grid-column: 1 / -1;
+  }
+
+  .srm-erp-crud-modal .erp-form-item--wide {
+    grid-column: span 2;
+  }
+
+  .srm-erp-crud-modal .srm-attachment-panel__list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .srm-erp-crud-modal .erp-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .srm-erp-crud-modal .erp-form-item--wide {
+    grid-column: 1 / -1;
+  }
+}

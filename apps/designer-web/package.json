@@ -17,6 +17,7 @@
     "@doormes/persistence": "*",
     "@doormes/product-template-catalog": "*",
     "@doormes/renderer-drawing-svg": "*",
+    "@doormes/renderer-svg": "*",
     "@doormes/visual-asset-storage": "*",
     "@doormes/visual-asset-storage-node": "*"
   }

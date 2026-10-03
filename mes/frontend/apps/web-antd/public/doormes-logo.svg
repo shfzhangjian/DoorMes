@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="DoorMes 门窗工厂">
+  <rect width="64" height="64" rx="12" fill="#0f3757"/>
+  <path d="M14 13h36v38H14zM32 13v38M14 32h36" fill="none" stroke="#ffffff" stroke-width="3"/>
+  <path d="m18 17 10 5v23l-10 2z" fill="#68c4ee" stroke="#ffffff" stroke-width="1.5"/>
+  <path d="M24 32h3" stroke="#0f3757" stroke-width="2"/>
+  <path d="M37 38h8m-8 5h8" stroke="#68c4ee" stroke-width="2"/>
+</svg>

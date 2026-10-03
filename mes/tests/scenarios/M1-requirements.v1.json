@@ -1,0 +1,51 @@
+{
+  "scenarioId": "M1-REQ",
+  "version": 1,
+  "date": "2026-10-02",
+  "executionMode": "HTTP + static compilation + isolated unit tests; no browser",
+  "S": {
+    "objective": "实际销售定制需求保存、修订、提交研发和研发领用，保留不可覆盖的历史 JSON。",
+    "environment": {"workspace":"E:/doorMES_v1/LUCK-MES-HC-0","database":"doormes_local","tenantId":1,"baseUrl":"http://localhost:5180","frontendPort":5180,"backendPort":48082,"profile":"local,doormes","branch":"新副本尚未建立 Git 仓库"},
+    "accounts": [
+      {"username":"sales","userId":1002,"role":"factory_sales","departmentId":1003,"purpose":"新建、修订和提交本人需求"},
+      {"username":"design","userId":1003,"role":"factory_design","departmentId":1004,"purpose":"查询和领用需求"},
+      {"username":"reviewer","userId":1007,"role":"factory_reviewer","departmentId":1008,"purpose":"查询允许，新建拒绝"},
+      {"username":"purchase","userId":1005,"role":"factory_purchase","departmentId":1006,"purpose":"无需求查询权限"}
+    ],
+    "scope": "同一企业测试范围；更新/提交校验创建人；租户隔离另以 H2 两租户测试验证。没有伪造登录用户。",
+    "preserve": ["原源码","原库 qdaq0923","原 Redis 6379","新账号和组织","人工需求","旧绘图原型"]
+  },
+  "O": {
+    "preconditions": [
+      {"id":"PRE-01","operation":"核验 profiles、5180 代理、doormes_local、6381 专用缓存和后端健康。"},
+      {"id":"PRE-02","operation":"检查 V001 表/菜单映射及真实角色按钮权限，重新登录。"},
+      {"id":"PRE-03","operation":"密码从本机受保护 accounts.local.json 读取，不进入证据或控制台。"}
+    ],
+    "data": [{"id":"DATA-01","operation":"自动生成 TEST-M1-REQ-时间-随机后缀唯一需求号；C1 两樘 1200×1500、AL70/GL24/HW-TT/RAL7016。"}],
+    "actions": [
+      {"id":"ACT-01","actor":"sales","menu":"门窗业务/订单与设计需求","operation":"新建需求并重新加载","assertions":["ASSERT-01","ASSERT-02","ASSERT-03","ASSERT-04"]},
+      {"id":"ACT-02","actor":"sales","operation":"宽度修订为1250，重新读取R1","assertions":["ASSERT-05","ASSERT-06","ASSERT-07"]},
+      {"id":"ACT-03","actor":"sales","operation":"过期版本、重复单号、无效尺寸、重复门窗号及未接入标准引用的拒绝检查","assertions":["ASSERT-08","ASSERT-09","ASSERT-10","ASSERT-11","ASSERT-12"]},
+      {"id":"ACT-04","actor":"reviewer/purchase/sales","operation":"真实角色新建、查询和领用权限拒绝","assertions":["ASSERT-13","ASSERT-14","ASSERT-15"]},
+      {"id":"ACT-05","actor":"sales/design","operation":"销售提交研发；研发读取待领用列表并领用","assertions":["ASSERT-16","ASSERT-17","ASSERT-18"]},
+      {"id":"ACT-06","actor":"design/sales/reviewer","operation":"禁止重复领用/覆盖领用基线；审核可查询","assertions":["ASSERT-19","ASSERT-20","ASSERT-21"]},
+      {"id":"ACT-07","actor":"design","operation":"读取四个历史版本、核对 MySQL 和文件 SHA-256","assertions":["ASSERT-22","ASSERT-23","ASSERT-FILE-01","ASSERT-FILE-02","ASSERT-FILE-03","ASSERT-FILE-04"]}
+    ]
+  },
+  "A": {
+    "expectedStates": ["R1 DRAFT 宽1200","R2 DRAFT 宽1250","R3 SUBMITTED","R4 IN_DESIGN assignedTo=1003"],
+    "tables": ["dm_design_requirement","dm_design_requirement_version"],
+    "fileRule": "runtime-local/design-data/requirements/tenant-1/<UUID>/rN.json",
+    "negativeCodes": {"invalidInput":400,"noPermission":403,"revisionConflict":409,"standardReferenceNotImplemented":501},
+    "automatedProof": "运行目录 manifest.json 的27项断言；后端8项新增隔离测试；前端8项输入测试。",
+    "uiStatus": "待人工验证，未使用浏览器；HTTP成功不等于已验证页面交互。"
+  },
+  "P": {
+    "runCommand": "scripts/verify-doormes-requirements.ps1",
+    "evidence": ["request-create.json","final-document.json","versions.json","database-evidence.txt","manifest.json"],
+    "cleanup": [{"id":"CLEAN-01","operation":"scripts/archive-doormes-requirement-test.ps1 默认仅预览；指定本次目录并 -Apply，精确核验测试号和 UUID，备份后清理。"}],
+    "archive": [{"id":"ARCH-01","operation":"保留场景定义、完整 JSON、数据库证据、cleanup.sql、restore.sql 和 cleanup.json。"}],
+    "manualVerification": {"result":"","tester":"","time":"","notes":""},
+    "remainingRisks": ["标准设计引用和实际订单关联未接入","绘图引擎迁入和图纸 JSON 保存未接入；本轮保存的是需求 JSON","正式变更审核/生产发布未接入","当前测试角色是企业范围，不是生产项目隔离"]
+  }
+}

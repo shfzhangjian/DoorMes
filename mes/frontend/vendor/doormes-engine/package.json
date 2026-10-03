@@ -1,0 +1,8 @@
+{
+  "name": "@doormes/mes-drawing-engine",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "node build.mjs", "test": "node --test adapter.test.mjs catalog.test.mjs assets.test.mjs bom.test.mjs factory-drawing.test.mjs" },
+  "dependencies": { "three": "0.186.0", "ajv": "8.20.0" },
+  "devDependencies": { "vite": "7.3.1" }
+}

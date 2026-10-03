@@ -1,0 +1,85 @@
+# ===================================================================
+# 单元测试专用配置 (Unit Test Profile) - MySQL 修复版
+# ===================================================================
+
+yudao:
+  info:
+    version: 1.0.0
+    base-package: cn.iocoder.yudao
+
+spring:
+  main:
+    allow-circular-references: true
+    lazy-initialization: true
+    banner-mode: off
+
+  # 1. 数据源配置
+  datasource:
+    # ⚠️ 请再次确认密码
+    url: jdbc:mysql://127.0.0.1:3306/luck-mes-test?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: root
+    # 强制指定使用 Hikari，防止因为 classpath 里有 Druid 包而导致冲突
+    type: com.zaxxer.hikari.HikariDataSource
+    hikari:
+      minimum-idle: 1
+      maximum-pool-size: 5
+      connection-timeout: 30000
+
+  # 2. SQL 初始化
+  sql:
+    init:
+      mode: never
+
+  # 3. 自动配置排除 (精简版)
+  autoconfigure:
+    exclude:
+      # --- Redis & Redisson (必须排除) ---
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      - org.redisson.spring.starter.RedissonAutoConfiguration
+
+      # --- MQ (必须排除) ---
+      - org.apache.rocketmq.spring.autoconfigure.RocketMQAutoConfiguration
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+
+      # --- Job & AI (必须排除) ---
+      - org.springframework.boot.autoconfigure.quartz.QuartzAutoConfiguration
+      - org.springframework.ai.autoconfigure.vectorstore.qdrant.QdrantVectorStoreAutoConfiguration
+      - org.springframework.ai.autoconfigure.vectorstore.milvus.MilvusVectorStoreAutoConfiguration
+      - org.springframework.ai.autoconfigure.vectorstore.redis.RedisVectorStoreAutoConfiguration
+
+      # ⚠️ 注意：我移除了 Druid 的排除项。
+      # 因为 RuoYi 的 dynamic-datasource 可能会自动处理它。
+      # 如果这里强行排除 DruidAutoConfigure，有时会导致整个 DataSource 初始化链条断裂。
+      # 只要上面 type 指定了 Hikari，Druid 就不会接管。
+
+  # AI 兜底
+  ai:
+    openai:
+      api-key: test-dummy-key
+
+# 4. MyBatis Plus
+mybatis-plus:
+  type-aliases-package: ${yudao.info.base-package}.module.*.dal.dataobject
+  global-config:
+    db-config:
+      id-type: NONE
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+    banner: false
+
+# 5. 日志
+logging:
+  level:
+    root: INFO
+    cn.iocoder.yudao: DEBUG
+    com.baomidou.mybatisplus: INFO
+    org.springframework: WARN
+
+# 6. 兜底
+lock4j:
+  acquire-timeout: 3000
+  expire: 30000

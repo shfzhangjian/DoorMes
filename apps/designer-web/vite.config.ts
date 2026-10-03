@@ -2,6 +2,7 @@ import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig, loadEnv } from "vite";
 import { createLocalVisualAssetApiPlugin } from "./vite-visual-asset-api.js";
+import { createFactoryApiPlugin } from "./vite-factory-api.js";
 
 /**
  * Configures the browser entry used to exercise the shared core and both
@@ -29,13 +30,14 @@ export default defineConfig(({ mode }) => {
     root: appDirectory,
     envDir: repositoryDirectory,
     plugins: [
+      createFactoryApiPlugin(resolve(repositoryDirectory, environment.DOORMES_FACTORY_DIRECTORY?.trim() || "runtime-data/factory"), environment.DOORMES_PROTOTYPE_PASSWORD),
       createLocalVisualAssetApiPlugin({
         storageDirectory,
         actorId: environment.DOORMES_DEV_ACTOR_ID?.trim() || "local-worker"
       })
     ],
     server: {
-      host: "127.0.0.1"
+      host: "0.0.0.0"
     },
     build: {
       outDir: "dist",

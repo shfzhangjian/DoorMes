@@ -1,0 +1,15 @@
+{
+  "name": "@doormes/layout-shell-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@doormes/application": "*",
+    "@doormes/interaction-core": "*",
+    "@doormes/interaction-touch": "*",
+    "@doormes/ui-components": "*"
+  }
+}

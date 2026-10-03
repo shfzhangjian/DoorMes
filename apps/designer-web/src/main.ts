@@ -30,6 +30,7 @@ import {
 } from "@doormes/visual-asset-storage";
 import { mountFactoryDrawingControls } from "./factory-drawing-controls";
 import { mountProjectFileControls } from "./project-file-controls";
+import { mountFactoryWorkbench } from "./factory-workbench";
 import {
   REFERENCE_SIMULATION_MANUFACTURING_CATALOG,
   REFERENCE_SIMULATION_NUMBER_POLICY
@@ -284,7 +285,12 @@ async function bootstrap(): Promise<void> {
     media.addEventListener("change", mountCurrentShell);
   }
   mountCurrentShell();
+  const disposeFactoryWorkbench = mountFactoryWorkbench(root, session, () => {
+    selection.select(undefined, "system");
+    canvasView.resetTransform();
+  });
   window.addEventListener("pagehide", () => {
+    disposeFactoryWorkbench();
     disposeFactoryDrawingControls?.();
     disposeProjectFileControls?.();
     disposeShell?.();

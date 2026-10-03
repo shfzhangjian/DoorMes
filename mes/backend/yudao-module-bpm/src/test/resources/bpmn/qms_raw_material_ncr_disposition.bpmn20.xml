@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <process id="qms_raw_material_ncr_disposition" name="原材料不合格处置单" isExecutable="true">
+    <startEvent id="StartEvent" name="开始"/>
+    <userTask id="StartUserNode" name="发起登记">
+      <extensionElements>
+        <flowable:approveType><![CDATA[1]]></flowable:approveType>
+        <flowable:candidateStrategy><![CDATA[36]]></flowable:candidateStrategy>
+        <flowable:buttonsSetting displayName="提交" enable="true" id="1"/>
+        <flowable:buttonsSetting displayName="退回" enable="false" id="6"/>
+        <flowable:assignStartUserHandlerType><![CDATA[2]]></flowable:assignStartUserHandlerType>
+      </extensionElements>
+    </userTask>
+    <userTask id="quality_confirm" name="品质部确认/分派">
+      <extensionElements>
+        <flowable:approveType><![CDATA[1]]></flowable:approveType>
+        <flowable:candidateStrategy><![CDATA[10]]></flowable:candidateStrategy>
+        <flowable:candidateParam><![CDATA[1]]></flowable:candidateParam>
+        <flowable:approveMethod><![CDATA[3]]></flowable:approveMethod>
+        <flowable:nodeType><![CDATA[13]]></flowable:nodeType>
+        <flowable:buttonsSetting displayName="确认并分派" enable="true" id="1"/>
+        <flowable:buttonsSetting displayName="退回" enable="true" id="6"/>
+        <flowable:rejectHandlerType><![CDATA[2]]></flowable:rejectHandlerType>
+        <flowable:rejectReturnTaskId><![CDATA[StartUserNode]]></flowable:rejectReturnTaskId>
+      </extensionElements>
+      <multiInstanceLoopCharacteristics isSequential="false" flowable:collection="${coll_userList}">
+        <completionCondition>${nrOfCompletedInstances &gt; 0}</completionCondition>
+      </multiInstanceLoopCharacteristics>
+    </userTask>
+    <userTask id="mrb_review" name="责任单位处置会签">
+      <extensionElements>
+        <flowable:approveType><![CDATA[1]]></flowable:approveType>
+        <flowable:candidateStrategy><![CDATA[34]]></flowable:candidateStrategy>
+        <flowable:approveMethod><![CDATA[2]]></flowable:approveMethod>
+        <flowable:approveRatio><![CDATA[100]]></flowable:approveRatio>
+        <flowable:nodeType><![CDATA[13]]></flowable:nodeType>
+        <flowable:buttonsSetting displayName="提交会签意见" enable="true" id="1"/>
+        <flowable:buttonsSetting displayName="退回" enable="true" id="6"/>
+        <flowable:rejectHandlerType><![CDATA[2]]></flowable:rejectHandlerType>
+        <flowable:rejectReturnTaskId><![CDATA[quality_confirm]]></flowable:rejectReturnTaskId>
+      </extensionElements>
+      <multiInstanceLoopCharacteristics isSequential="false" flowable:collection="${coll_userList}">
+        <completionCondition>${nrOfCompletedInstances/nrOfInstances &gt;= 1.00}</completionCondition>
+      </multiInstanceLoopCharacteristics>
+    </userTask>
+    <userTask id="review_assign" name="品质部转办">
+      <extensionElements>
+        <flowable:approveType><![CDATA[1]]></flowable:approveType>
+        <flowable:candidateStrategy><![CDATA[34]]></flowable:candidateStrategy>
+        <flowable:approveMethod><![CDATA[1]]></flowable:approveMethod>
+        <flowable:nodeType><![CDATA[13]]></flowable:nodeType>
+        <flowable:buttonsSetting displayName="确认转办" enable="true" id="1"/>
+      </extensionElements>
+    </userTask>
+    <exclusiveGateway id="raw_route_gateway" name="品质转办办理方式" default="flow_route_direct_execution"/>
+    <userTask id="final_dispose" name="终审人办理">
+      <extensionElements>
+        <flowable:approveType><![CDATA[1]]></flowable:approveType>
+        <flowable:candidateStrategy><![CDATA[34]]></flowable:candidateStrategy>
+        <flowable:approveMethod><![CDATA[1]]></flowable:approveMethod>
+        <flowable:nodeType><![CDATA[11]]></flowable:nodeType>
+        <flowable:buttonsSetting displayName="提交终审意见" enable="true" id="1"/>
+      </extensionElements>
+    </userTask>
+    <userTask id="execution_assign" name="品质部转办（终审后）">
+      <extensionElements>
+        <flowable:approveType><![CDATA[1]]></flowable:approveType>
+        <flowable:candidateStrategy><![CDATA[34]]></flowable:candidateStrategy>
+        <flowable:approveMethod><![CDATA[1]]></flowable:approveMethod>
+        <flowable:nodeType><![CDATA[13]]></flowable:nodeType>
+        <flowable:buttonsSetting displayName="确认转办" enable="true" id="1"/>
+      </extensionElements>
+    </userTask>
+    <exclusiveGateway id="post_final_route_gateway" name="终审后办理方式" default="flow_post_final_execution"/>
+    <userTask id="execution_upload" name="不合格处置结果上传">
+      <extensionElements>
+        <flowable:approveType><![CDATA[1]]></flowable:approveType>
+        <flowable:candidateStrategy><![CDATA[34]]></flowable:candidateStrategy>
+        <flowable:approveMethod><![CDATA[1]]></flowable:approveMethod>
+        <flowable:nodeType><![CDATA[13]]></flowable:nodeType>
+        <flowable:buttonsSetting displayName="提交处置结果" enable="true" id="1"/>
+      </extensionElements>
+    </userTask>
+    <userTask id="review_close" name="办理人复检关闭">
+      <extensionElements>
+        <flowable:approveType><![CDATA[1]]></flowable:approveType>
+        <flowable:candidateStrategy><![CDATA[34]]></flowable:candidateStrategy>
+        <flowable:approveMethod><![CDATA[1]]></flowable:approveMethod>
+        <flowable:nodeType><![CDATA[13]]></flowable:nodeType>
+        <flowable:buttonsSetting displayName="复检关闭" enable="true" id="1"/>
+        <flowable:buttonsSetting displayName="退回重派" enable="false" id="6"/>
+      </extensionElements>
+    </userTask>
+    <endEvent id="EndEvent" name="结束"/>
+    <sequenceFlow id="flow_start_to_user" sourceRef="StartEvent" targetRef="StartUserNode"/>
+    <sequenceFlow id="flow_user_to_quality" sourceRef="StartUserNode" targetRef="quality_confirm"/>
+    <sequenceFlow id="flow_quality_to_mrb" sourceRef="quality_confirm" targetRef="mrb_review"/>
+    <sequenceFlow id="flow_mrb_to_transfer" sourceRef="mrb_review" targetRef="review_assign"/>
+    <sequenceFlow id="flow_transfer_to_gateway" sourceRef="review_assign" targetRef="raw_route_gateway"/>
+    <sequenceFlow id="flow_route_final" name="提交终审" sourceRef="raw_route_gateway" targetRef="final_dispose">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${rawMaterialTransferRoute == "FINAL_APPROVAL"}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow_route_direct_close" name="直接关闭" sourceRef="raw_route_gateway" targetRef="EndEvent">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${rawMaterialTransferRoute == "DIRECT_CLOSE"}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow_route_direct_execution" name="处置执行分派" sourceRef="raw_route_gateway" targetRef="execution_upload"/>
+    <sequenceFlow id="flow_final_to_assign" sourceRef="final_dispose" targetRef="execution_assign"/>
+    <sequenceFlow id="flow_assign_to_post_final_gateway" sourceRef="execution_assign" targetRef="post_final_route_gateway"/>
+    <sequenceFlow id="flow_post_final_close" name="直接关闭" sourceRef="post_final_route_gateway" targetRef="EndEvent">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${rawMaterialTransferRoute == "DIRECT_CLOSE"}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow_post_final_execution" name="处置执行分派" sourceRef="post_final_route_gateway" targetRef="execution_upload"/>
+    <sequenceFlow id="flow_upload_to_close" sourceRef="execution_upload" targetRef="review_close"/>
+    <sequenceFlow id="flow_close_to_end" sourceRef="review_close" targetRef="EndEvent"/>
+  </process>
+</definitions>

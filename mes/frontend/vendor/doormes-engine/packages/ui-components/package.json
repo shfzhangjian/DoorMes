@@ -1,0 +1,20 @@
+{
+  "name": "@doormes/ui-components",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@doormes/appearance-model": "*",
+    "@doormes/application": "*",
+    "@doormes/contracts": "*",
+    "@doormes/geometry-topology": "*",
+    "@doormes/interaction-core": "*",
+    "@doormes/interaction-touch": "*",
+    "@doormes/renderer-svg": "*",
+    "@doormes/renderer-three": "*",
+    "@doormes/visual-asset-storage": "*"
+  }
+}

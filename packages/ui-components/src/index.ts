@@ -932,7 +932,7 @@ export function mountSharedDesignWorkspace(
   if (options.constructionToolsContainer) {
     options.constructionToolsContainer.classList.add("design-construction-tools");
     options.constructionToolsContainer.setAttribute("role", "toolbar");
-    options.constructionToolsContainer.setAttribute("aria-label", "移动中梃与分格工具");
+    options.constructionToolsContainer.setAttribute("aria-label", "中梃与分格构造工具");
     populateGridToolButtons(options.constructionToolsContainer);
   }
   const gridButtons = [

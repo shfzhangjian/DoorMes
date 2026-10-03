@@ -1,0 +1,315 @@
+.qms-product-event-detail-modal [class*='modal__header'],
+.qms-product-event-detail-modal .ant-modal-header {
+  display: none !important;
+}
+
+.qms-product-event-detail-modal [class*='modal__body'],
+.qms-product-event-detail-modal .ant-modal-body {
+  height: 100dvh !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: #eef2f6;
+}
+
+.qms-product-event-detail-modal [class*='modal__content'],
+.qms-product-event-detail-modal .ant-modal-content {
+  height: 100dvh !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.qms-product-event-detail-modal .ant-spin-nested-loading,
+.qms-product-event-detail-modal .ant-spin-container {
+  height: 100%;
+  min-height: 0;
+}
+
+.qms-product-event-detail-modal .ant-spin-container {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.qms-ncr-detail {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  color: #1f2937;
+  background:
+    linear-gradient(90deg, rgba(30, 41, 59, 0.04) 1px, transparent 1px) 0 0 /
+      28px 28px,
+    linear-gradient(0deg, rgba(30, 41, 59, 0.04) 1px, transparent 1px) 0 0 /
+      28px 28px,
+    #f5f7fa;
+}
+
+.qms-ncr-toolbar {
+  display: grid;
+  grid-template-columns:
+    minmax(260px, 1fr)
+    minmax(360px, 720px)
+    minmax(320px, 1fr);
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 8px 14px;
+  background: linear-gradient(180deg, #f7fbff 0%, #e8f1fb 100%);
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.qms-ncr-toolbar__placeholder,
+.qms-ncr-toolbar__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.qms-ncr-toolbar__actions {
+  justify-content: flex-end;
+  justify-self: end;
+}
+
+.qms-ncr-title-panel {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.qms-ncr-title-panel__name {
+  overflow: hidden;
+  color: #075985;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qms-ncr-title-panel__subtitle {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.qms-ncr-title-panel__subtitle-item {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qms-ncr-toolbar-action.ant-btn {
+  min-width: 72px;
+  height: 30px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 6%);
+}
+
+.detail-spin {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0%;
+  flex-direction: column;
+}
+
+.detail-content {
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.qms-exception-workbench {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: auto;
+}
+
+.qms-exception-form {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 12px;
+}
+
+.erp-basic-form {
+  flex: 0 1 auto;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+.detail-list-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 8px 12px;
+}
+
+.detail-list-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.detail-list-title strong,
+.qms-exception-section-subtitle {
+  color: #10233d;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.detail-list-title strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.erp-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 110px minmax(0, 1fr));
+  border-top: 1px solid #e2e8f0;
+  border-left: 1px solid #e2e8f0;
+}
+
+.erp-form-grid > label,
+.erp-form-label,
+.erp-form-value {
+  min-height: 38px;
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 9px 10px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.erp-form-grid > label,
+.erp-form-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.erp-form-label--tall {
+  min-height: 88px !important;
+}
+
+.erp-form-value {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  background: #fff;
+  color: #111827;
+  overflow-wrap: anywhere;
+}
+
+.erp-form-value--span-5 {
+  grid-column: span 5;
+}
+
+.erp-form-value .ant-input,
+.erp-form-value .ant-select,
+.erp-form-value .ant-picker,
+.erp-form-value .ant-upload-wrapper {
+  width: 100%;
+}
+
+.erp-form-value .ant-input,
+.erp-form-value .ant-select-selector,
+.erp-form-value .ant-picker {
+  border-radius: 4px;
+}
+
+.qms-exception-form-item {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.qms-exception-readonly-value {
+  width: 100%;
+  overflow: hidden;
+  color: #334155;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qms-exception-readonly-value--multiline {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.qms-exception-tabs {
+  padding: 0 10px 10px;
+}
+
+.qms-exception-tabs .ant-tabs-nav {
+  margin-bottom: 8px;
+}
+
+.qms-exception-subtable {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  background: #fff;
+}
+
+.qms-exception-subtable-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 4px 0 8px;
+  color: #10233d;
+  font-weight: 800;
+}
+
+.qms-exception-subtable-title--compact {
+  margin-top: 0;
+  font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  .qms-ncr-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .qms-ncr-toolbar__placeholder,
+  .qms-ncr-toolbar__actions {
+    justify-content: center;
+    justify-self: center;
+  }
+
+  .erp-form-grid {
+    grid-template-columns: 110px minmax(0, 1fr);
+  }
+
+  .erp-form-value--span-5 {
+    grid-column: span 1;
+  }
+}

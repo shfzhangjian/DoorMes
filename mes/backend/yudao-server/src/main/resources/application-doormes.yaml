@@ -1,0 +1,92 @@
+# Loaded AFTER local. Never use the original database/cache for DoorMes tests.
+spring:
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6381
+      database: 0
+      password: ${DOORMES_REDIS_PASSWORD}
+  quartz:
+    auto-startup: false
+  boot:
+    admin:
+      client:
+        enabled: false
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+      direct:
+        auto-startup: false
+  kafka:
+    listener:
+      auto-startup: false
+  datasource:
+    druid:
+      web-stat-filter:
+        enabled: false
+      stat-view-servlet:
+        enabled: false
+    dynamic:
+      datasource:
+        master:
+          username: ${DOORMES_DB_USERNAME:doormes_app}
+          password: ${DOORMES_DB_PASSWORD}
+        slave:
+          username: ${DOORMES_DB_USERNAME:doormes_app}
+          password: ${DOORMES_DB_PASSWORD}
+
+server:
+  address: 127.0.0.1
+  port: 48082
+
+logging:
+  level:
+    cn.iocoder.yudao.framework.apilog: WARN
+  file:
+    name: ${DOORMES_RUNTIME_ROOT:../runtime-local}/logs/doormes-server.log
+
+flowable:
+  async-executor-activate: false
+  async-history-executor-activate: false
+  database-schema-update: 'false'
+  check-process-definitions: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+yudao:
+  security:
+    mock-enable: false
+  websocket:
+    sender-type: local
+  oa:
+    ecology:
+      enabled: false
+  mes:
+    qms:
+      fai:
+        oa-notify:
+          enabled: false
+
+justauth:
+  enabled: false
+
+doormes:
+  assets:
+    root: ${DOORMES_RUNTIME_ROOT:../runtime-local}/design-data/assets
+  catalog:
+    root: ${DOORMES_RUNTIME_ROOT:../runtime-local}/design-data/catalog
+  drawings:
+    root: ${DOORMES_RUNTIME_ROOT:../runtime-local}/design-data/drawings
+    node: ${DOORMES_NODE_EXECUTABLE:C:/Program Files/nodejs/node.exe}
+    validator: ${DOORMES_VALIDATOR_PATH:../frontend/vendor/doormes-engine/dist/validator.mjs}
+    temporary-root: ${DOORMES_RUNTIME_ROOT:../runtime-local}/design-data/validation-temp
+  requirements:
+    root: ${DOORMES_RUNTIME_ROOT:../runtime-local}/design-data/requirements
+  local:
+    upload-root: ${DOORMES_RUNTIME_ROOT:../runtime-local}/uploads
+    file-origin: ${DOORMES_PUBLIC_FILE_ORIGIN:http://127.0.0.1:5180}

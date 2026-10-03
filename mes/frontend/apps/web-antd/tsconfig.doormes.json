@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/views/doormes/**/*.vue", "src/views/doormes/**/*.ts", "src/api/doormes/**/*.ts", "src/router/load-failure.ts", "src/app.vue", "src/**/*.d.ts"]
+}

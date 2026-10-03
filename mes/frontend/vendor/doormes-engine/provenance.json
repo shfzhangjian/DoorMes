@@ -1,0 +1,15 @@
+{
+  "source":"E:/doorMES_v1/DoorMes/packages and apps/designer-web/src/style.css",
+  "sourceGitCommit":"31059e9d7187fbd603bd2e60779127d3bf0f0299",
+  "copiedOn":"2026-10-02",
+  "purpose":"Native integration of the shared design engine into the actual MES, not the prototype's business/login application.",
+  "upstreamPreserved":true,
+  "maintainedAdaptations":["adapter.ts native Shadow DOM lifecycle and atomic catalog application","model.ts demand dimension seed","validator.ts shared command-replay, catalog and local model inspection","catalog.ts exact-version finish/glass and pinned color texture mapping","assets.ts real authenticated MES upload/read gateway","visual-asset-storage portable SHA-256 for untrusted LAN HTTP and self-contained glTF preflight","ui-components exact model/LOD/color-texture reload and asynchronous disposal guards","renderer-three managed color texture loader","layout-shell-desktop scoped template storage and ShadowRoot keyboard focus","adapter-api.d.mts MES boundary declaration"],
+  "build":"node build.mjs; output dist includes browser engine and standalone headless Node validator",
+  "test":"node --test adapter.test.mjs catalog.test.mjs assets.test.mjs; TypeScript project tsconfig.json; backend DrawingServiceTest, CatalogServiceTest and AssetServiceTest; real M1-AST HTTP/SQL/files scenario",
+  "runtimeDependency":"Backend geometry validation requires configured Node >=22, installed locally at C:/Program Files/nodejs/node.exe. Browser output is self-contained.",
+  "buildDependencies":"Prefer this package's declared dependencies; existing prototype dependency cache is a read-only build fallback. MES runtime does not depend on the prototype service.",
+  "handoffOn":"2026-10-03",
+  "factoryDrawingStatus":"Native MES saved-version paper preview/export adapter is implemented; first UI recording and post-fix targeted tests exist; final post-fix browser regression remains pending.",
+  "notMigratedYet":["server-published reusable product catalog","full controlled manufacturing profile/hardware/section/machining catalog"]
+}

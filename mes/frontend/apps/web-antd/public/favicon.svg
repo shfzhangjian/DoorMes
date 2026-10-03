@@ -1,0 +1,20 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="favGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#00c6fb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#005bea;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="borderGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4587ef;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00209e;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <rect x="2" y="2" width="60" height="60" rx="12" ry="12" fill="url(#favGradient)" stroke="url(#borderGradient)" stroke-width="2" />
+
+  <path d="M2,14 C2,7.4 7.4,2 14,2 H50 C56.6,2 62,7.4 62,14 V16 H2 V14 Z" fill="#00209e" opacity="0.3" />
+
+  <text x="32" y="43" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-weight="900" font-size="24" letter-spacing="1" style="text-shadow: 0px 2px 2px rgba(0,0,0,0.2);">MES</text>
+
+  <rect x="22" y="50" width="20" height="3" rx="1.5" fill="#fff" opacity="0.5" />
+</svg>

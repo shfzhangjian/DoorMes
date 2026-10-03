@@ -1,0 +1,21 @@
+{
+  "name": "@doormes/drawing-projection",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@doormes/contracts": "*",
+    "@doormes/drawing-model": "*",
+    "@doormes/geometry-topology": "*",
+    "@doormes/manufacturing-model": "*",
+    "@doormes/opening-kinematics": "*"
+  },
+  "devDependencies": {
+    "@doormes/application": "*",
+    "@doormes/calculation-engine": "*",
+    "@doormes/domain": "*"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@doormes/persistence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./local-design": "./src/local-design.ts",
+    "./local-visual-history": "./src/local-visual-history.ts"
+  },
+  "dependencies": {
+    "@doormes/application": "*",
+    "@doormes/appearance-model": "*",
+    "@doormes/contracts": "*",
+    "@doormes/domain": "*",
+    "@doormes/geometry-topology": "*",
+    "ajv": "8.20.0"
+  }
+}

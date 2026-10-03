@@ -1,0 +1,29 @@
+# Local runtime contains credentials, databases, uploads, and test evidence.
+runtime-local/
+db/backup/
+**/node_modules/
+**/target/
+**/dist/
+**/build/
+**/.venv/
+**/release/
+**/__pycache__/
+**/.idea/
+**/.vscode/
+*.log
+*.pyc
+*.local
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.bak
+*.bkp
+
+# These checked-in frontend values are public defaults with login and crypto keys cleared.
+!frontend/apps/web-antd/.env
+!frontend/apps/web-antd/.env.development
+!frontend/apps/web-antd/.env.production
+!frontend/apps/web-antd/.env.analyze

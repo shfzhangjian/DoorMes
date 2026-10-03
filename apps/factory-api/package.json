@@ -1,0 +1,14 @@
+{
+  "name": "@doormes/factory-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@doormes/contracts": "*",
+    "@doormes/application": "*",
+    "@doormes/domain": "*",
+    "@doormes/persistence": "*",
+    "@doormes/calculation-engine": "*",
+    "@doormes/manufacturing-model": "*"
+  }
+}

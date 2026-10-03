@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target":"ES2022","lib":["ES2022","DOM","DOM.Iterable"],"module":"ESNext","moduleResolution":"Bundler",
+    "strict":true,"skipLibCheck":true,"noEmit":true,"resolveJsonModule":true,"types":["node"],
+    "typeRoots":["../../../../DoorMes/node_modules/@types","../../node_modules/@types"],
+    "paths":{
+      "@doormes/persistence/local-design":["./packages/persistence/src/local-design.ts"],
+      "@doormes/persistence/local-visual-history":["./packages/persistence/src/local-visual-history.ts"],
+      "@doormes/*":["./packages/*/src/index.ts"],
+      "three":["../../../../DoorMes/node_modules/@types/three/index.d.ts"],
+      "three/addons/*":["../../../../DoorMes/node_modules/@types/three/examples/jsm/*"],
+      "three/*":["../../../../DoorMes/node_modules/@types/three/*"],
+      "*": ["../../node_modules/*","../../../../DoorMes/node_modules/*"]
+    }
+  },
+  "include":["adapter.ts","model.ts","validator.ts","../../node_modules/vite/client.d.ts"]
+}
