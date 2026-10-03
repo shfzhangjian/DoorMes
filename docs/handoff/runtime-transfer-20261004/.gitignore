@@ -1,0 +1,6 @@
+# Account passwords and local connection secrets must travel separately.
+*PRIVATE*
+accounts.local.json
+db-credentials.json
+redis-credentials.json
+*.local
