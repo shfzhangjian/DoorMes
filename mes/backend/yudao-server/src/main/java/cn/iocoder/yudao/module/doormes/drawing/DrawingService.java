@@ -10,6 +10,7 @@ import cn.iocoder.yudao.module.doormes.asset.AssetService;
 import cn.iocoder.yudao.module.system.service.permission.PermissionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -135,6 +136,25 @@ public class DrawingService {
         Metadata previous=effectiveMetadata(old);Metadata meta=input.metadata()==null?previous:metadata(input.metadata(),previous.source(),previous.number());unique(meta.number(),id);
         Snapshot doc=new Snapshot(SCHEMA,old.id(),tenant(),old.requirementId(),old.requirementRevision(),old.lineId(),old.revision()+1,"DRAFT",old.createdBy(),actor(),old.createdAt(),Instant.now().toString(),input.changeNote().trim(),document,meta,false);
         persist(doc,false,null,null);return decorate(doc,canEdit(doc));
+    }
+    Snapshot copyFromStandard(Snapshot source) {
+        if(!permissions.hasAnyPermissions(actor(),"doormes:design:standard-reuse") ||
+            !permissions.hasAnyPermissions(actor(),"doormes:design:drawing-create"))throw new ServiceException(403,"当前账号没有复用标准设计权限");
+        String id=UUID.randomUUID().toString(),now=Instant.now().toString();
+        ObjectNode copied=source.document().deepCopy();copied.put("designId",id);
+        catalog.validateReferences(copied);assets.validateReferences(copied);
+        JsonNode document=validator.validate(copied);
+        if(!id.equals(document.path("designId").asText()))throw new ServiceException(400,"标准设计复制后的图纸身份无效");
+        catalog.validateReferences(document);assets.validateReferences(document);
+        String name="复用 " + source.metadata().name();
+        Metadata meta=new Metadata(autoNumber(id),name.substring(0,Math.min(200,name.length())),
+            "来源标准设计 " + source.metadata().number() + " R" + source.revision(),"INDEPENDENT");
+        Snapshot doc=new Snapshot(SCHEMA,id,tenant(),null,0,null,1,"DRAFT",actor(),actor(),now,now,
+            "从已发布标准设计创建独立副本",document,meta,false);
+        persist(doc,true,null,null);
+        jdbc.update("UPDATE dm_drawing SET standard_source_id=?,standard_source_revision=? WHERE tenant_id=? AND id=?",
+            source.id(),source.revision(),tenant(),id);
+        return decorate(doc,canEdit(doc));
     }
     private RequirementModels.Line line(RequirementModels.Document requirement,String lineId){return requirement.demand().lines().stream().filter(item->item.id().equals(lineId)).findFirst().orElseThrow(()->new ServiceException(404,"需求明细不存在"));}
     private void owner(RequirementModels.Document requirement) {

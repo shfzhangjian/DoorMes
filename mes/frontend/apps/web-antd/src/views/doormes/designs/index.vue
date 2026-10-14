@@ -4,12 +4,17 @@ import { useAccessStore, useUserStore } from '@vben/stores';
 import { Alert, Button, Checkbox, Dropdown, Input, InputNumber, Menu, Modal, Pagination, Select, Table, Tag, message } from 'ant-design-vue';
 import type { DrawingCreateInput, DrawingSnapshot, DrawingSource, DrawingSummary, DrawingVersion } from '#/api/doormes/drawings';
 import { createDrawing, getDrawing, getDrawingVersions, listDrawings } from '#/api/doormes/drawings';
+import { submitStandardDesign } from '#/api/doormes/standard-designs';
 import { newDrawingInput, validateDrawingInput } from './model';
 import TableViewport from '../shared/table-viewport.vue';
+import StandardLibrary from './standard-library.vue';
+import { IconifyIcon } from '@vben/icons';
 
 defineOptions({name:'DoorMesDesignCenter'});
 const access=useAccessStore(),user=useUserStore();
 const canCreate=computed(()=>user.userRoles.includes('super_admin')||access.accessCodes.includes('doormes:design:drawing-create'));
+const canSubmit=computed(()=>user.userRoles.includes('super_admin')||access.accessCodes.includes('doormes:design:standard-submit'));
+const canViewStandards=computed(()=>user.userRoles.includes('super_admin')||access.accessCodes.includes('doormes:design:standard-reuse')||access.accessCodes.includes('doormes:design:standard-review'));
 const DrawingWorkspace=defineAsyncComponent(()=>import('../drawing-workspace/index.vue'));
 const rows=ref<DrawingSummary[]>([]),total=ref(0),pageNo=ref(1),pageSize=ref(20),keyword=ref(''),source=ref<DrawingSource|''>(''),mine=ref(true);
 const loading=ref(false),busy=ref(false),error=ref('');
@@ -19,6 +24,7 @@ const detailOpen=ref(false),detail=shallowRef<DrawingSnapshot|null>(null);
 const historyOpen=ref(false),historyDrawing=shallowRef<DrawingSnapshot|null>(null),versions=ref<DrawingVersion[]>([]);
 const historyPage=ref(1),visibleVersions=computed(()=>versions.value.slice((historyPage.value-1)*10,historyPage.value*10));
 const activeDrawing=shallowRef<DrawingSnapshot|null>(null);
+const libraryOpen=ref(false);
 let listRequest=0,disposed=false;
 const sourceName=(value:string)=>value==='INDEPENDENT'?'独立设计':'需求图纸';
 const timestamp=(value:string)=>new Date(value).toLocaleString('zh-CN',{hour12:false});
@@ -61,7 +67,17 @@ async function showHistory(id:string){if(busy.value)return;busy.value=true;error
   try{const [snapshot,history]=await Promise.all([getDrawing(id),getDrawingVersions(id)]);if(!disposed){historyDrawing.value=snapshot;versions.value=history;historyPage.value=1;historyOpen.value=true;}}
   catch{if(!disposed)error.value='图纸历史读取失败，请重试。';}finally{if(!disposed)busy.value=false;}}
 async function viewVersion(revision:number){if(!historyDrawing.value)return;const id=historyDrawing.value.id;await open(id,revision);if(activeDrawing.value?.id===id)historyOpen.value=false;}
-function rowAction(key:unknown,id:string){if(key==='open')void open(id);else if(key==='detail')void showDetails(id);else if(key==='history')void showHistory(id);}
+async function submitStandard(row:DrawingSummary){
+  if(!canSubmit.value||row.source!=='INDEPENDENT'||(row.createdBy!==Number(user.userInfo?.id)&&!user.userRoles.includes('super_admin')))return;
+  const confirmed=await new Promise<boolean>(resolve=>Modal.confirm({title:'提交标准设计审核',content:`${row.number} · R${row.revision}。审核将冻结此版本供企业复用；提交后仍可继续修订原图纸。`,okText:'提交审核',cancelText:'取消',onOk:()=>resolve(true),onCancel:()=>resolve(false)}));
+  if(!confirmed)return;
+  busy.value=true;error.value='';
+  try{await submitStandardDesign(row.id,row.revision);message.success('已提交标准设计审核。');}
+  catch{error.value='提交失败。请核对图纸版本、权限和是否已有待审核版本。';}
+  finally{busy.value=false;}
+}
+function rowAction(key:unknown,row:DrawingSummary){if(key==='open')void open(row.id);else if(key==='detail')void showDetails(row.id);else if(key==='history')void showHistory(row.id);else if(key==='submit')void submitStandard(row);}
+function openStandard(snapshot:DrawingSnapshot){libraryOpen.value=false;activeDrawing.value=snapshot;void refresh();}
 function closed(){activeDrawing.value=null;void refresh();}
 onMounted(()=>{void refresh();});
 onBeforeUnmount(()=>{disposed=true;++listRequest;});
@@ -71,6 +87,7 @@ onBeforeUnmount(()=>{disposed=true;++listRequest;});
   <main class="design-center">
     <header class="design-header"><h1>图纸设计</h1><div class="header-actions">
       <Button :loading="loading" :disabled="busy||creationBusy" @click="refresh">刷新</Button>
+      <Button v-if="canViewStandards" :disabled="busy||creationBusy" @click="libraryOpen=true"><IconifyIcon icon="lucide:library" /> 标准设计库</Button>
       <Dropdown v-if="canCreate" :trigger="['click']" :disabled="busy||creationBusy"><Button type="primary">新建图纸 ▾</Button>
         <template #overlay><Menu @click="showCreate"><Menu.Item key="independent">新建独立设计</Menu.Item></Menu></template>
       </Dropdown>
@@ -90,7 +107,7 @@ onBeforeUnmount(()=>{disposed=true;++listRequest;});
           <template v-else-if="column.dataIndex==='updatedAt'">{{timestamp(record.updatedAt)}}</template>
           <template v-else-if="column.key==='operation'">
             <Dropdown :trigger="['click']" :disabled="busy"><Button size="small">操作 ▾</Button>
-              <template #overlay><Menu @click="({key})=>rowAction(key,record.id)"><Menu.Item key="open">{{record.editable?'打开设计':'打开预览'}}</Menu.Item><Menu.Item key="detail">查看明细</Menu.Item><Menu.Item key="history">版本历史</Menu.Item></Menu></template>
+              <template #overlay><Menu @click="({key})=>rowAction(key,record as DrawingSummary)"><Menu.Item key="open">{{record.editable?'打开设计':'打开预览'}}</Menu.Item><Menu.Item key="detail">查看明细</Menu.Item><Menu.Item key="history">版本历史</Menu.Item><Menu.Item v-if="canSubmit&&record.source==='INDEPENDENT'&&(record.createdBy===Number(user.userInfo?.id)||user.userRoles.includes('super_admin'))" key="submit">提交标准设计审核</Menu.Item></Menu></template>
             </Dropdown>
           </template>
         </template>
@@ -122,6 +139,7 @@ onBeforeUnmount(()=>{disposed=true;++listRequest;});
       <footer class="history-pagination"><span>共 {{versions.length}} 个版本</span><Pagination v-model:current="historyPage" :page-size="10" :total="versions.length" :show-size-changer="false" /></footer>
     </Modal>
     <DrawingWorkspace v-if="activeDrawing" :key="`${activeDrawing.id}:${activeDrawing.revision}`" :initial-drawing="activeDrawing" @saved="refresh" @close="closed" />
+    <StandardLibrary v-if="libraryOpen" @close="libraryOpen=false" @open="openStandard" />
   </main>
 </template>
 
